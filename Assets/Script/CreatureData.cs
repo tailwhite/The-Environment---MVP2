@@ -18,7 +18,7 @@ namespace EvolutionLaws.Data
         public string DisplayName;
 
         [Tooltip("当前的世界坐标")]
-        public Vector2 Position;            // 世界坐标位置 ✅ 新增
+        public Vector2 Position;            // 世界坐标位置
 
         [Tooltip("物种名称 (例如: Wolf_Gen5)")]
         public string SpeciesID;  // 物种标识 (如 "Wolf_Gen5")
@@ -34,6 +34,33 @@ namespace EvolutionLaws.Data
 
         [Tooltip("当前生长阶段")]
         public LifeStage Stage = LifeStage.Adult;
+
+        //年龄相关
+        [Tooltip("成熟年龄 (秒) - 达到此年龄才能繁殖")]
+        public float Maturity_Age = 50f;
+
+        [Tooltip("最大寿命 (秒) - 达到此年龄后死亡概率增加")]
+        public float Max_Lifespan = 300f;
+
+        //繁殖相关
+        [Header("--- 繁殖状态 ---")]
+        [Tooltip("是否处于怀孕/孵化状态")]
+        public bool IsPregnant = false;
+
+        [Tooltip("怀孕开始时间 (仿真时间)")]
+        public float Pregnancy_Start_Time = 0f;
+
+        [Tooltip("怀孕时长 (秒)")]
+        public float Pregnancy_Duration = 30f;
+
+        [Tooltip("上次繁殖时间 (仿真时间)")]
+        public float Last_Reproduction_Time = 0f;
+
+        [Tooltip("繁殖冷却时间 (秒)")]
+        public float Reproduction_Cooldown = 60f;
+
+        [Tooltip("配偶 UID (当前繁殖伙伴)")]
+        public string Mate_UID = null;
 
         [Header("--- 运行状态 ---")]
         [Tooltip("是否死亡")]
@@ -94,6 +121,14 @@ namespace EvolutionLaws.Data
         [Tooltip("【重要】进食效率表。\n顺序必须对应 ResourceType 枚举：\n0: 无\n1: 植物纤维\n2: 肉\n3: 腐肉")]
         public List<float> Diet_Efficiency_Flat = new List<float>();
 
+        // 👇=== 能量账单统计 ===👇
+        [Header("--- 能量账单统计 (Lifetime) ---")]
+        public float Lifetime_EnergySpent_Metabolism = 0f; // 累计基础代谢消耗
+
+        public float Lifetime_EnergySpent_Temp = 0f;       // 累计温度环境惩罚消耗
+        public float Lifetime_EnergySpent_Move = 0f;       // 累计移动消耗
+        public float Lifetime_EnergySpent_Action = 0f;     // 累计行为消耗(进食/繁殖/攻击)
+
         // ==========================================
         // 【维度 3】 行为能力 (Action Profile)
         // ==========================================
@@ -104,6 +139,15 @@ namespace EvolutionLaws.Data
 
         [Tooltip("攻击伤害")]
         public float Attack_Damage = 10.0f;
+
+        [Tooltip("攻击范围 (格子距离)")]
+        public float Attack_Range = 1.5f;
+
+        [Tooltip("攻击间隔 (秒)")]
+        public float Attack_Cooldown = 2.0f;
+
+        [Tooltip("上次攻击时间 (仿真时间)")]
+        public float Last_Attack_Time = 0f; // 运行时记录
 
         // ==========================================
         // 【维度 4】 感知系统 (Senses)
@@ -123,6 +167,27 @@ namespace EvolutionLaws.Data
 
         [Tooltip("同时关注的目标数量上限")]
         public int Attention_Cap = 3;            // 同时关注目标数
+
+        //感知结果存储结构，供决策系统使用
+        [Header("--- 感知结果 (运行时更新) ---")]
+        [Tooltip("当前感知到的目标列表 (由 PerceptionSystem 每帧更新)")]
+        public List<PerceivedTarget> PerceivedTargets = new List<PerceivedTarget>();
+
+        // ==========================================
+        // 决策状态 (由 DecisionSystem 更新)
+        // ==========================================
+        [Header("--- 决策状态 (由 DecisionSystem 更新) ---")]
+        [Tooltip("当前行为状态")]
+        public BehaviorState CurrentBehavior = BehaviorState.Idle;
+
+        [Tooltip("目标位置 (用于 MovementSystem, null 表示无目标)")]
+        public Vector2? TargetPosition = null; // nullable 类型
+
+        [Tooltip("目标生物 UID (用于战斗/追捕, 为空表示无目标)")]
+        public string TargetCreatureUID = null;
+
+        [Tooltip("目标切换冷却时间 (防止疯狂切换目标)")]
+        public float TargetSwitchCooldown = 2.0f; // 决策间隔
 
         // ==========================================
         // 【维度 5】 认知与决策 (Brain)

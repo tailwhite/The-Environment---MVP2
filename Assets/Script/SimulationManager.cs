@@ -71,6 +71,9 @@ namespace EvolutionLaws.Core
         [Tooltip("固定时间步长 (秒)，建议 0.05 - 0.1")]
         public float FixedDeltaTime = 0.1f;
 
+        // 👇 全局仿真计时器
+        public float GlobalTime { get; private set; } = 0f;
+
         private float _accumulator = 0f;
 
         //暂停相关
@@ -86,10 +89,20 @@ namespace EvolutionLaws.Core
         private MovementSystem _movementSystem; // 生物移动系统
         private InteractionSystem _interactionSystem; //交互系统 (进食)
 
-        // private PerceptionSystem _perceptionSystem;
-        // private DecisionSystem _decisionSystem;
-        // private EvolutionSystem _evolutionSystem;
-        // private EnvironmentSystem _environmentSystem;
+        private PerceptionSystem _perceptionSystem;// 感知系统 (视觉/嗅觉/听觉)
+        private DecisionSystem _decisionSystem;// 决策系统 (AI行为状态)
+        private CombatSystem _combatSystem;// 战斗系统 (攻击/防御)
+        private ReproductionSystem _reproductionSystem;// 繁殖系统 (基因混合/后代生成)
+
+        // 环境动态系统 (暴露给面板调节参数)
+        [Header("Environment Dynamics System")]
+        public EnvironmentDynamicsSystem _environmentSystem = new EnvironmentDynamicsSystem();
+
+        //数据分析系统 (用于收集统计数据，未来可扩展为独立模块)
+        private DataAnalyticsSystem _analyticsSystem;
+
+        //蓝图字典 (用于繁殖系统快速查找)
+        private Dictionary<string, SpeciesBlueprint> _blueprintMap = new Dictionary<string, SpeciesBlueprint>();
 
         // ==========================================
         // 初始化
@@ -145,6 +158,18 @@ namespace EvolutionLaws.Core
             _movementSystem = new MovementSystem();
             _metabolismSystem = new MetabolismSystem();
             _interactionSystem = new InteractionSystem();
+            _perceptionSystem = new PerceptionSystem();
+            _decisionSystem = new DecisionSystem();
+            _combatSystem = new CombatSystem();
+            _reproductionSystem = new ReproductionSystem();
+            //_environmentSystem = new EnvironmentDynamicsSystem();由unity编辑器中调用
+
+            //数据分析系统 (用于收集统计数据，未来可扩展为独立模块)
+            _analyticsSystem = new DataAnalyticsSystem(); // 👈 新增实例
+            _analyticsSystem.Initialize();
+
+            BuildBlueprintMap();// 构建蓝图映射表，供繁殖系统使用
+
             Debug.Log("[SimulationManager] ✅ 系统初始化完成");
 
             // ──────────────────────────────────
@@ -225,6 +250,25 @@ namespace EvolutionLaws.Core
             Debug.Log($"[SimulationManager]  种群生成完成 | 总计: {totalSpawned} 只生物");
         }
 
+        // 构建蓝图映射表
+        /// <summary>
+        /// 从 SpeciesConfigs 构建 SpeciesID -> Blueprint 的映射表
+        /// </summary>
+        private void BuildBlueprintMap()
+        {
+            _blueprintMap.Clear();
+
+            foreach (var config in SpeciesConfigs)
+            {
+                if (config.Blueprint != null && !string.IsNullOrEmpty(config.Blueprint.SpeciesID))
+                {
+                    _blueprintMap[config.Blueprint.SpeciesID] = config.Blueprint;
+                }
+            }
+
+            Debug.Log($"[SimulationManager] 蓝图映射表已构建 | 共 {_blueprintMap.Count} 个物种");
+        }
+
         // ==========================================
         // Unity 更新循环
         // ==========================================
@@ -253,6 +297,15 @@ namespace EvolutionLaws.Core
             if (Input.GetKeyDown(KeyCode.Space))
             {
                 TogglePause();
+            }
+            // F10键:导出当前配置 (仅在非暂停状态下)
+            if (Input.GetKeyDown(KeyCode.F10))
+            {
+                if (_analyticsSystem != null)
+                {
+                    // 注意：这里的 _environmentSystem 根据你之前的代码可能是大写的 EnvironmentDynamics，请根据实际变量名填写
+                    _analyticsSystem.ExportConfigurationJSON(EnvironmentManager, _environmentSystem, SpeciesConfigs);
+                }
             }
 
             // 数字键:设置速度 (仅在非暂停状态下)
@@ -318,30 +371,34 @@ namespace EvolutionLaws.Core
         /// </summary>
         private void Tick(float deltaTime)
         {
-            // ────────────────────────────────────
+            GlobalTime += deltaTime;
+
+            // ───────────────────────────────
             // 阶段 1: 环境系统更新
             // ────────────────────────────────────
             // TODO: 更新全局场参数 (昼夜、季节、气候)
             // TODO: 更新格子动态数据 (植物生长、气味扩散、尸体腐烂)
-            // _environmentSystem.Tick(Environment, deltaTime);
+            _environmentSystem.Tick(Environment, deltaTime);
 
             // ────────────────────────────────────
             // 阶段 2: 生物感知系统
             // ────────────────────────────────────
             // TODO: 遍历所有生物，更新视觉/嗅觉/听觉感知列表
-            // _perceptionSystem.Tick(AllCreatures, Environment, deltaTime);
+            _perceptionSystem.Tick(AllCreatures, Environment, deltaTime);
 
             // ────────────────────────────────────
             // 阶段 3: 生物决策系统 (AI)
             // ────────────────────────────────────
             // TODO: 根据需求(Hunger/Safety/Reproduction)和感知结果，更新行为状态
-            // _decisionSystem.Tick(AllCreatures, deltaTime);
+            _decisionSystem.Tick(AllCreatures, deltaTime);
 
             // ────────────────────────────────────
             // 阶段 4: 行为执行系统
             // ────────────────────────────────────
             // TODO: 根据决策结果执行移动、攻击、进食等行为
             _movementSystem.Tick(AllCreatures, Environment, EnvironmentManager, deltaTime);
+            //阶段 4.4: 战斗系统 (攻击/防御)
+            _combatSystem.Tick(AllCreatures, deltaTime);
             // 阶段 4.5: 交互系统 (进食/采集)
             _interactionSystem.Tick(AllCreatures, Environment, deltaTime);
             // ────────────────────────────────────
@@ -352,6 +409,8 @@ namespace EvolutionLaws.Core
             // TODO: 检测死亡条件
             _metabolismSystem.Tick(AllCreatures, Environment, deltaTime);
 
+            // 阶段 5.5: 繁殖系统 (配偶寻找/基因混合/后代生成)
+            _reproductionSystem.Tick(AllCreatures, _blueprintMap, deltaTime);
             // ────────────────────────────────────
             // 阶段 6: 演化系统 (表观遗传)
             // ────────────────────────────────────
@@ -365,7 +424,38 @@ namespace EvolutionLaws.Core
             // ────────────────────────────────────
             // TODO: 移除死亡生物 (IsDead = true)
             // TODO: 生成尸体资源 (Biomass_Meat)
+            ProcessNewOffspring();
             CleanupDeadCreatures();
+
+            //数据分析系统 (收集统计数据，未来可扩展为独立模块)
+            _analyticsSystem.Tick(AllCreatures, Environment, GlobalTime);
+
+            if (GlobalTime % 10 < deltaTime) // 每10秒打印一次
+            {
+                int totalHerbivores = 0;
+                int starvingCount = 0;
+                int foragingCount = 0;
+
+                foreach (var c in AllCreatures)
+                {
+                    if (c.SpeciesID == "食草虫")
+                    {
+                        totalHerbivores++;
+                        if (c.Nutrients < c.Nutrients_Max * 0.2f) starvingCount++;
+                        if (c.CurrentBehavior == BehaviorState.Foraging) foragingCount++;
+                    }
+                }
+
+                Debug.Log($"[体检报告 - 时间 {GlobalTime:F0}] 物种只数: {totalHerbivores} | 濒临饿死占比: {(float)starvingCount / totalHerbivores:P1} | 正在找饭占比: {(float)foragingCount / totalHerbivores:P1}");
+            }
+        }
+
+        private void OnApplicationQuit()
+        {
+            if (_analyticsSystem != null)
+            {
+                _analyticsSystem.ExportToFile();
+            }
         }
 
         // ==========================================
@@ -383,15 +473,20 @@ namespace EvolutionLaws.Core
                 var tile = Environment.GetTile((int)dead.Position.x, (int)dead.Position.y);
                 if (tile != null)
                 {
-                    tile.Biomass_Meat += dead.Mass; // ✅ 尸体转化为肉类
-                }
+                    // 检查生物的主要食性，判定身体成分
+                    float mineralEfficiency = EvolutionLaws.Utilities.MetabolismUtility.GetDietEfficiency(dead, ResourceType.Mineral);
 
-                // 销毁视图
-                if (_creatureViews.TryGetValue(dead.UID, out var view))
-                {
-                    if (view != null)
-                        Destroy(view.gameObject);
-                    _creatureViews.Remove(dead.UID);
+                    if (mineralEfficiency > 0.5f)
+                    {
+                        // 硅基/食矿生物死亡，主要爆出矿石，附带极少量的肉
+                        tile.Biomass_Mineral += dead.Mass * 40f;// 矿石资源等于生物质量的40倍
+                        tile.Biomass_Meat += dead.Mass * 10f;//肉资源等于生物质量的10倍
+                    }
+                    else
+                    {
+                        // 碳基生物死亡，全部转化为蛋白质 (肉)
+                        tile.Biomass_Meat += dead.Mass * 50f;//肉资源等于生物质量的50倍
+                    }
                 }
             }
             // TODO: 将死亡生物的 Mass 转化为对应格子的 Biomass_Meat
@@ -419,6 +514,75 @@ namespace EvolutionLaws.Core
             return new Vector2(Environment.Width / 2f, Environment.Height / 2f);
         }
 
+        // 处理后代生成
+        /// <summary>
+        /// 处理繁殖系统产生的后代 (统一创建视图)
+        /// </summary>
+        private void ProcessNewOffspring()
+        {
+            var offspringList = _reproductionSystem.GetPendingOffspring();
+
+            if (offspringList == null || offspringList.Count == 0)
+                return;
+
+            foreach (var offspring in offspringList)
+            {
+                // 1. 添加到数据列表
+                AllCreatures.Add(offspring);
+
+                // 2. 获取蓝图
+                if (!_blueprintMap.TryGetValue(offspring.SpeciesID, out var blueprint))
+                {
+                    Debug.LogError($"[SimulationManager] ❌ 找不到物种蓝图: {offspring.SpeciesID}");
+                    continue;
+                }
+
+                // 3. 创建视图 (统一流程)
+                CreateCreatureView(offspring, blueprint);
+
+                Debug.Log($"[SimulationManager] 🎉 后代诞生 | 物种: {blueprint.SpeciesID} | 代数: G{offspring.Generation} | 位置: {offspring.Position}");
+            }
+        }
+
+        // 创建生物视图 (解耦视图创建逻辑)
+        /// <summary>
+        /// 【视图创建】为生物数据创建对应的视图对象
+        /// </summary>
+        private void CreateCreatureView(CreatureData data, SpeciesBlueprint blueprint)
+        {
+            if (Creature_Template_Prefab == null)
+            {
+                Debug.LogError("[SimulationManager] Creature_Template_Prefab 未设置!");
+                return;
+            }
+
+            // 实例化预制体
+            var viewObject = Instantiate(
+                Creature_Template_Prefab,
+                new Vector3(data.Position.x, data.Position.y, 0),
+                Quaternion.identity
+            );
+
+            // 设置名称
+            viewObject.name = data.Generation > 0
+                ? $"{blueprint.SpeciesID}_G{data.Generation}_{data.UID.Substring(0, 8)}"
+                : $"{blueprint.SpeciesID}_{data.UID.Substring(0, 8)}";
+
+            // 初始化视图
+            var view = viewObject.GetComponent<CreatureView>();
+            if (view == null)
+            {
+                Debug.LogError("[SimulationManager] 预制体缺少 CreatureView 组件!");
+                Destroy(viewObject);
+                return;
+            }
+
+            view.Initialize(data, blueprint.DefaultSprite);
+
+            // 注册到字典
+            _creatureViews[data.UID] = view;
+        }
+
         // ==========================================
         // 公共接口
         // ==========================================
@@ -427,39 +591,23 @@ namespace EvolutionLaws.Core
         /// </summary>
         public CreatureView SpawnCreature(SpeciesBlueprint blueprint, Vector2 position)
         {
-            //从接收位置生成一个以该蓝图为模板的生物
             // 1. 从蓝图创建数据
-            var data = blueprint.CreateCreatureData(position);
+            var data = blueprint.CreateCreatureData(position, GlobalTime);
 
             // 2. 添加到数据列表
             AllCreatures.Add(data);
 
-            // 3. 实例化视图预制体
-            if (Creature_Template_Prefab == null)
+            // 3. 创建视图 (统一流程)
+            CreateCreatureView(data, blueprint);
+
+            // 4. 返回视图
+            if (_creatureViews.TryGetValue(data.UID, out var view))
             {
-                Debug.LogError("[SimulationManager] Creature_Template_Prefab 未设置!");
-                return null;
+                Debug.Log($"[SimulationManager] 生成生物 | 物种: {blueprint.SpeciesID} | 位置: {position}");
+                return view;
             }
 
-            var viewObject = Instantiate(Creature_Template_Prefab, new Vector3(position.x, position.y, 0), Quaternion.identity);
-            viewObject.name = $"{blueprint.SpeciesID}_{data.UID.Substring(0, 8)}";
-
-            // 4. 初始化 CreatureView
-            var view = viewObject.GetComponent<CreatureView>();
-            if (view == null)
-            {
-                Debug.LogError("[SimulationManager] 预制体缺少 CreatureView 组件!");
-                Destroy(viewObject);
-                return null;
-            }
-
-            view.Initialize(data, blueprint.DefaultSprite);
-
-            // 5. 注册到字典
-            _creatureViews[data.UID] = view;
-
-            Debug.Log($"[SimulationManager] 生成生物 | 物种: {blueprint.SpeciesID} | 位置: {position}");
-            return view;
+            return null;
         }
 
         /// <summary>

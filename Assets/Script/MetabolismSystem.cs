@@ -96,7 +96,17 @@ namespace EvolutionLaws.Core
                     creature.Vitality_Current -= Starvation_Damage_Rate * deltaTime;
                     creature.Nutrients = 0; // 防止负数
                 }
-
+                // 当营养低于 80% 时开始产生饥饿感，营养越低，饥饿感越趋近 100
+                float nutrientPercent = creature.Nutrients / creature.Nutrients_Max;
+                if (nutrientPercent < 0.8f)
+                {
+                    // 营养剩 80% 饥饿感是 0；营养 0% 时饥饿感是 100
+                    creature.Need_Hunger = (0.8f - nutrientPercent) / 0.8f * 100f;
+                }
+                else
+                {
+                    creature.Need_Hunger = 0f;
+                }
                 // ──────────────────────────────────
                 // 阶段 5: 环境伤害 (毒性)
                 // ──────────────────────────────────
@@ -152,7 +162,20 @@ namespace EvolutionLaws.Core
             // 环境惩罚：温度偏离
             float tempPenalty = CalculateTemperaturePenalty(creature, environment.Global_Temperature);
 
-            return baseBurn + tempPenalty;//代谢总消耗 = 基础 + 词缀 + 环境惩罚
+            float totalBurn = baseBurn + tempPenalty;
+
+            // 【生态机制】：休息奖励
+            // 如果生物当前处于休息、闲逛未移动或昏迷状态，大幅降低代谢消耗
+            if (creature.CurrentBehavior == BehaviorState.Resting || creature.IsUnconscious)
+            {
+                totalBurn *= 0.3f; // 深度休息/昏迷时代谢大幅降低 (仅消耗30%)
+            }
+            else if (!creature.IsMoving)
+            {
+                totalBurn *= 0.7f; // 站着不动时，也能节省一点体力
+            }
+
+            return totalBurn;//代谢总消耗
         }
 
         /// <summary>

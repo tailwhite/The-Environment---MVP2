@@ -101,7 +101,11 @@ namespace EvolutionLaws.View
             }
 
             // 2. 同步缩放 (基于 Size)
-            transform.localScale = Vector3.one * _data.Size;
+            //transform.localScale = Vector3.one * _data.Size;线性缩放可能导致过大或过小,使用幂函数调整缩放曲线
+            //float visualScale = Mathf.Sqrt(_data.Size);开方
+            float visualScale = Mathf.Pow(_data.Size, 0.3f);
+
+            transform.localScale = Vector3.one * visualScale;
 
             // 3. 高级状态颜色
             UpdateVisualState();
@@ -167,7 +171,51 @@ namespace EvolutionLaws.View
             // 绘制视野范围
             Gizmos.color = Color.cyan;
             Gizmos.DrawWireSphere(transform.position, _data.Vision_Range);
+            //绘制感知目标
+            if (_data.PerceivedTargets != null)
+            {
+                foreach (var target in _data.PerceivedTargets)
+                {
+                    // 根据类型选择颜色
+                    Gizmos.color = target.Type switch
+                    {
+                        TargetType.FoodResource => Color.green,
+                        TargetType.Predator => Color.red,
+                        TargetType.Prey => new Color(1f, 0.5f, 0f), // 补上橘色：猎物连线
+                        TargetType.Ally => Color.blue,
+                        _ => Color.white
+                    };
 
+                    // 画线连接
+                    Gizmos.DrawLine(transform.position, target.Position);
+                    // 画球标记目标
+                    Gizmos.DrawWireSphere(target.Position, 0.5f);
+                }
+            }
+            //绘制决策目标
+            if (_data.TargetPosition.HasValue)
+            {
+                // 根据行为状态选择颜色
+                Gizmos.color = _data.CurrentBehavior switch
+                {
+                    BehaviorState.Foraging => Color.green,
+                    BehaviorState.Fleeing => Color.red,
+                    BehaviorState.Hunting => Color.yellow,
+                    _ => Color.gray
+                };
+
+                // 画箭头指向目标
+                Gizmos.DrawLine(transform.position, _data.TargetPosition.Value);
+                Gizmos.DrawWireSphere(_data.TargetPosition.Value, 0.8f);
+
+                // 在目标位置上方显示行为状态
+#if UNITY_EDITOR
+                UnityEditor.Handles.Label(
+                    _data.TargetPosition.Value + Vector2.up * 0.5f,
+                    $"[{_data.CurrentBehavior}]"
+                );
+#endif
+            }
             // 绘制健康条 (简易版)
             Vector3 barPos = transform.position + Vector3.up * 1.5f;// 血条长度根据当前生命值百分比调整
             float healthPercent = _data.Vitality_Current / _data.Vitality_Max;// 从红色到绿色渐变

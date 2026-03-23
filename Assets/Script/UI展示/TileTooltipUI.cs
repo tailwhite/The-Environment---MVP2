@@ -267,7 +267,7 @@ namespace EvolutionLaws.UI
 
             // 3. 获取地块数据
             tile = EnvironmentManager.EnvironmentData?.GetTile(tileX, tileY);
-            if (tile == null) Debug.Log($"未找到格子! 坐标: {tileX}, {tileY}");
+            //if (tile == null) Debug.Log($"未找到格子! 坐标: {tileX}, {tileY}");
             return tile != null;
         }
 

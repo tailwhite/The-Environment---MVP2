@@ -1,6 +1,7 @@
+using EvolutionLaws.Data;
+using EvolutionLaws.Utilities;
 using System.Collections.Generic;
 using UnityEngine;
-using EvolutionLaws.Data;
 
 namespace EvolutionLaws.Core
 {
@@ -61,7 +62,7 @@ namespace EvolutionLaws.Core
                 if (fedSuccessfully)
                 {
                     creature.IsFeeding = true;// 设置进食状态
-                    Debug.Log($"[InteractionSystem] {creature.SpeciesID} 进食成功 | 位置: ({tileX}, {tileY})");
+                    //Debug.Log($"[InteractionSystem] {creature.SpeciesID} 进食成功 | 位置: ({tileX}, {tileY})");
                 }
             }
         }
@@ -72,10 +73,6 @@ namespace EvolutionLaws.Core
         private bool ShouldFeed(CreatureData creature)
         {
             if (creature.Nutrients >= creature.Nutrients_Max)
-                return false;
-
-            float nutrientPercent = creature.Nutrients / creature.Nutrients_Max;
-            if (nutrientPercent > 0.7f)
                 return false;
 
             // 使用仿真时间
@@ -100,7 +97,7 @@ namespace EvolutionLaws.Core
             // 检查植物资源
             if (tile.Biomass_Plant > 0f)
             {   // 有植物资源
-                float plantEfficiency = GetDietEfficiency(creature, ResourceType.Plant_Fiber);
+                float plantEfficiency = MetabolismUtility.GetDietEfficiency(creature, ResourceType.Plant_Fiber);
                 if (plantEfficiency > bestEfficiency)
                 {
                     bestResource = ResourceType.Plant_Fiber;
@@ -110,7 +107,7 @@ namespace EvolutionLaws.Core
             // 检查肉类资源
             if (tile.Biomass_Meat > 0f)
             {   // 有肉类资源
-                float meatEfficiency = GetDietEfficiency(creature, ResourceType.Meat);
+                float meatEfficiency = MetabolismUtility.GetDietEfficiency(creature, ResourceType.Meat);
                 // 比较效率
                 if (meatEfficiency > bestEfficiency)
                 {   // 更新最佳资源
@@ -122,7 +119,7 @@ namespace EvolutionLaws.Core
             // 检查矿物资源
             if (tile.Biomass_Mineral > 0f)
             {
-                float mineralEfficiency = GetDietEfficiency(creature, ResourceType.Mineral);
+                float mineralEfficiency = MetabolismUtility.GetDietEfficiency(creature, ResourceType.Mineral);
                 if (mineralEfficiency > bestEfficiency)
                 {
                     bestResource = ResourceType.Mineral;
@@ -174,31 +171,10 @@ namespace EvolutionLaws.Core
             //  记录仿真时间
             _lastFeedTime[creature.UID] = _simulationTime;
 
-            Debug.Log($"[InteractionSystem] {creature.SpeciesID} 进食 {actualAmount:F1} {bestResource} | " +
-                      $"获得营养: {gainedNutrients:F1} | 效率: {bestEfficiency:P0}");
+            //Debug.Log($"[InteractionSystem] {creature.SpeciesID}[{creature.UID.Substring(0, 6)}] 进食 {actualAmount:F1} {bestResource} | " +
+            //$"获得营养: {gainedNutrients:F1} | 效率: {bestEfficiency:P0}");
 
             return true;
-        }
-
-        // ==========================================
-        // 辅助方法:获取饮食效率
-        // ==========================================
-        /// <summary>
-        /// 获取生物对指定资源类型的消化效率
-        /// </summary>
-        private float GetDietEfficiency(CreatureData creature, ResourceType resourceType)
-        {
-            int index = (int)resourceType;
-
-            // 边界检查
-            if (creature.Diet_Efficiency_Flat == null ||
-                index < 0 ||
-                index >= creature.Diet_Efficiency_Flat.Count)
-            {
-                return 0f;
-            }
-
-            return creature.Diet_Efficiency_Flat[index];
         }
     }
 }

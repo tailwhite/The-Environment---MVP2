@@ -119,6 +119,27 @@ namespace EvolutionLaws.Config
         [Tooltip("生殖隔离阈值")]
         public float BaseReproductiveCompatibility = 0.7f; //阈值越高，越难与其他物种交配
 
+        // 繁殖参数
+        [Header("--- 繁殖参数 ---")]
+        [Tooltip("成熟年龄 (秒)")]
+        public float MaturityAge = 50f;
+
+        [Tooltip("最大寿命 (秒)")]
+        public float MaxLifespan = 300f;
+
+        [Tooltip("怀孕时长 (秒)")]
+        public float PregnancyDuration = 30f;
+
+        [Tooltip("繁殖冷却时间 (秒)")]
+        public float ReproductionCooldown = 60f;
+
+        [Tooltip("每次产仔数量 (随机范围)")]
+        public MinMaxRange OffspringCount = new MinMaxRange { Min = 1, Max = 3 };
+
+        [Tooltip("基因突变率 (0-1)")]
+        [Range(0f, 1f)]
+        public float MutationRate = 0.1f;
+
         //还有一些没有启用，等到需要启用时再进行，比如下面这些————启用时需要在工厂方法中补全
         /*
             [Header("--- 可选：初始状态 ---")]
@@ -136,7 +157,7 @@ namespace EvolutionLaws.Config
         // ==========================================
         // 工厂方法
         // ==========================================
-        public CreatureData CreateCreatureData(Vector2 spawnPosition)//获取当前位置，生成一个CreatureData实例
+        public CreatureData CreateCreatureData(Vector2 spawnPosition, float currentSimulationTime)//获取当前位置，生成一个CreatureData实例
         {
             var data = new CreatureData// 创建一个新的 CreatureData 实例
             {
@@ -146,7 +167,7 @@ namespace EvolutionLaws.Config
                 SpeciesID = this.SpeciesID,
                 DisplayName = this.DisplayName,
                 Generation = 0,
-                BirthTimestamp = Time.time,
+                BirthTimestamp = currentSimulationTime,
                 Stage = LifeStage.Adult,
 
                 // --- Physiology ---
@@ -172,21 +193,27 @@ namespace EvolutionLaws.Config
                 Vision_Range = this.VisionRange,
                 Vision_Angle = this.VisionAngle,
                 Scent_Sensitivity = this.ScentSensitivity,
-                Hearing_Threshold = this.HearingThreshold, // ✅
-                Attention_Cap = this.AttentionCap,         // ✅
+                Hearing_Threshold = this.HearingThreshold, //听力阈值
+                Attention_Cap = this.AttentionCap,         //注意力上限
 
                 // --- Brain (全填上了) ---
                 Stress_Panic_Threshold = this.StressPanicThreshold,
-                Stress_Recover_Threshold = this.StressRecoverThreshold, // ✅
-                Trait_Aggression = this.TraitAggression,
-                Trait_Curiosity = this.TraitCuriosity,
-                Trait_Tenacity = this.TraitTenacity,       // ✅
+                Stress_Recover_Threshold = this.StressRecoverThreshold, //压力恢复阈值
+                Trait_Aggression = this.TraitAggression,    //攻击性
+                Trait_Curiosity = this.TraitCuriosity,      //好奇心
+                Trait_Tenacity = this.TraitTenacity,       // 韧性
 
                 // --- Genetics (全填上了) ---
                 ActiveAffixes = new List<string>(this.InitialAffixes),// 复制初始词缀列表
                 Tolerance_Temp = this.ToleranceTemp,
-                Genetic_Stability = this.BaseGeneticStability,             // ✅
-                Reproductive_Compatibility = this.BaseReproductiveCompatibility // ✅
+                Genetic_Stability = this.BaseGeneticStability,             // 基因稳定性
+                Reproductive_Compatibility = this.BaseReproductiveCompatibility, //繁殖兼容性
+
+                //繁殖参数
+                Maturity_Age = this.MaturityAge,
+                Max_Lifespan = this.MaxLifespan,
+                Pregnancy_Duration = this.PregnancyDuration,
+                Reproduction_Cooldown = this.ReproductionCooldown
             };
 
             // --- 食谱转换逻辑 ---
