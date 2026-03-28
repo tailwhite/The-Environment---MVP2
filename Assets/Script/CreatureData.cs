@@ -241,8 +241,8 @@ namespace EvolutionLaws.Data
         public float Genetic_Complexity = 1.0f;         // 复杂度 (影响适应带宽)
 
         public float Genetic_Stability = 100f;          // 稳定性
-        public float Reproductive_Compatibility = 0.7f; // [补丁] 生殖隔离阈值
-        public float Parent_Quality_Index = 1.0f;       // [补丁] 亲代生活质量
+        public float Reproductive_Compatibility = 0.7f; //  生殖隔离阈值
+        public float Parent_Quality_Index = 1.0f;       //  亲代质量指数 (影响遗传质量)
 
         [Tooltip("温度适应区间 (在此区间外会扣血/增加代谢)")]
         public MinMaxRange Tolerance_Temp = new MinMaxRange { Min = -10, Max = 40 };

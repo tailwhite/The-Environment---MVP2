@@ -20,7 +20,7 @@ namespace EvolutionLaws.Core
         [Header("Movement Settings")]
         public float Wander_Interval = 2.0f;           // 漫游决策间隔(秒)
 
-        public float Move_Energy_Base_Cost = 2.0f;     // 基础移动能量消耗
+        public float Move_Energy_Base_Cost = 0.2f;     // 基础移动能量消耗
         public float Move_Structure_Wear = 0.1f;       // 移动结构磨损
 
         // 目标导向移动参数，未来可以增加更多参数 (如: 追踪/逃跑的决策间隔和能量成本,不同地形的额外成本等)
@@ -62,7 +62,7 @@ namespace EvolutionLaws.Core
 
                 if (targetPosition == creature.Position)
                     continue;
-
+                // 计算移动能量消耗
                 float moveCost = CalculateMoveCost(creature, targetPosition, environment);
                 if (creature.Energy < moveCost)
                 {
@@ -71,6 +71,8 @@ namespace EvolutionLaws.Core
                     continue;
                 }
                 creature.Energy -= moveCost;
+                //记录移动能量消耗
+                creature.Lifetime_EnergySpent_Move += moveCost;
                 // 移动导致结构磨损
                 creature.Structure_Current -= Move_Structure_Wear;
 

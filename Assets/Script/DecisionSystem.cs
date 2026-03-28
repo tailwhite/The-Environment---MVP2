@@ -215,14 +215,14 @@ namespace EvolutionLaws.Core
         {
             // 只有肉食动物才狩猎 (Meat 效率 > 0.5)
             float meatEfficiency = MetabolismUtility.GetDietEfficiency(creature, ResourceType.Meat);
-            if (meatEfficiency < 0.5f)
+            if (meatEfficiency < 0.1f)
                 return false;
 
             // 【行为惯性】：狩猎也是进食，一旦杀红了眼，必须吃到肚子撑下(Need_Hunger<=0)才复归平静
-            float huntingHungerThreshold = (creature.CurrentBehavior == BehaviorState.Hunting) ? 0f : HungerThreshold;
+            float huntingHungerThreshold = (creature.CurrentBehavior == BehaviorState.Hunting) ? 0f : 20f;
 
             // 必须饥饿 或者 极具攻击性(嗜血本能)
-            if (creature.Need_Hunger <= huntingHungerThreshold && creature.Trait_Aggression < 0.8f)
+            if (creature.Need_Hunger <= huntingHungerThreshold && creature.Trait_Aggression < 0.5f)
                 return false;
 
             // 检查是否有猎物目标

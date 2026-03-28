@@ -39,13 +39,7 @@ namespace EvolutionLaws.Core
                 // ──────────────────────────────────
                 // 阶段 1: 计算总代谢消耗
                 // ──────────────────────────────────
-                float totalBurn = CalculateMetabolicBurn(creature, environment);
-                creature.Current_Metabolic_Burn = totalBurn; // 记录到数据（用于UI显示）
-
-                // ──────────────────────────────────
-                // 阶段 2: 消耗 Energy
-                // ──────────────────────────────────
-                creature.Energy -= totalBurn * deltaTime;// 总消耗 = 代谢消耗 * 时间增量
+                ApplyAndRecordMetabolism(creature, environment, deltaTime);
 
                 // 如果Energy耗尽，从Nutrients转换
                 if (creature.Energy < 0)
@@ -145,6 +139,48 @@ namespace EvolutionLaws.Core
         // ==========================================
         // 辅助计算方法
         // ==========================================
+        // ==========================================
+        // 辅助计算方法
+        // ==========================================
+        /// <summary>
+        /// 计算、扣除并记录代谢消耗 (兼顾记账)
+        /// </summary>
+        private void ApplyAndRecordMetabolism(CreatureData creature, EnvironmentData environment, float deltaTime)
+        {
+            // TODO: 添加词缀代价 (需要从ConfigManager读取词缀定义)
+            // foreach (var affixID in creature.ActiveAffixes)
+            // {
+            //     var def = ConfigManager.GetAffix(affixID);
+            //     baseBurn += def.Upkeep_Cost;
+            // }
+
+            // 1. 获取基础与环境速率
+            float baseBurn = creature.Base_Metabolic_Rate;
+            float tempPenalty = CalculateTemperaturePenalty(creature, environment.Global_Temperature);
+
+            // 2. 【生态机制】：休息奖励修正系数
+            float multiplier = 1.0f;
+            if (creature.CurrentBehavior == BehaviorState.Resting || creature.IsUnconscious)
+                multiplier = 0.3f; // 深度休息/昏迷时代谢降低
+            else if (!creature.IsMoving)
+                multiplier = 0.7f; // 站着不动也能省体力
+
+            // 3. 计算本帧具体消耗量
+            float costMetab = baseBurn * multiplier * deltaTime;
+            float costTemp = tempPenalty * multiplier * deltaTime;
+            float totalCost = costMetab + costTemp;
+
+            // 4. 更新面板上的实时速率 (一秒正常流逝扣多少)
+            creature.Current_Metabolic_Burn = (baseBurn + tempPenalty) * multiplier;
+
+            // 5. 【账单记账】
+            creature.Lifetime_EnergySpent_Metabolism += costMetab;
+            creature.Lifetime_EnergySpent_Temp += costTemp;
+
+            // 6. 【扣除体力】
+            creature.Energy -= totalCost;
+        }
+
         /// <summary>
         /// 计算总代谢消耗 (基础 + 词缀 + 环境)
         /// </summary>

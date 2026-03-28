@@ -20,7 +20,7 @@ namespace EvolutionLaws.Core
         public void Initialize()
         {
             // 初始化 CSV 表头
-            _csvContent.AppendLine("Time,Species,Population,AvgEnergy,AvgNutrients,ForagingRate,FleeingRate,RestingRate,AvgSize,AvgSpeed,TotalPlantBiomass");
+            _csvContent.AppendLine("Time,Species,Population,AvgEnergy,AvgNutrients,ForagingRate,FleeingRate,RestingRate,AvgSize,AvgSpeed,TotalPlantBiomass,MetabolismCost,TempCost,MoveCost,ActionCost");
             Debug.Log("[DataAnalyticsSystem] 分析器初始化，准备记录数据...");
         }
 
@@ -57,6 +57,7 @@ namespace EvolutionLaws.Core
                 float sumEnergy = 0f, sumNutrients = 0f;
                 float sumSize = 0f, sumSpeed = 0f;
                 int foragingCount = 0, fleeingCount = 0, restingCount = 0;
+                float sumBurnMetabolism = 0f, sumBurnTemp = 0f, sumBurnMove = 0f, sumBurnAction = 0f;
 
                 foreach (var c in list)
                 {
@@ -64,6 +65,11 @@ namespace EvolutionLaws.Core
                     sumNutrients += c.Nutrients;
                     sumSize += c.Size;
                     sumSpeed += c.Move_Speed;
+                    //记录能量消耗细项，供后续分析不同因素的代谢负担
+                    sumBurnMetabolism += c.Lifetime_EnergySpent_Metabolism;
+                    sumBurnTemp += c.Lifetime_EnergySpent_Temp;
+                    sumBurnMove += c.Lifetime_EnergySpent_Move;
+                    sumBurnAction += c.Lifetime_EnergySpent_Action;
 
                     if (c.CurrentBehavior == BehaviorState.Foraging) foragingCount++;
                     else if (c.CurrentBehavior == BehaviorState.Fleeing) fleeingCount++;
@@ -75,7 +81,9 @@ namespace EvolutionLaws.Core
                     $"{globalTime:F1},{species},{population}," +
                     $"{sumEnergy / population:F2},{sumNutrients / population:F2}," +
                     $"{(float)foragingCount / population:F4},{(float)fleeingCount / population:F4},{(float)restingCount / population:F4}," +
-                    $"{sumSize / population:F3},{sumSpeed / population:F3},{totalPlantBiomass:F1}"
+                    $"{sumSize / population:F3},{sumSpeed / population:F3},{totalPlantBiomass:F1}," +
+                    $"{sumBurnMetabolism / population:F2},{sumBurnTemp / population:F2}," +
+                    $"{sumBurnMove / population:F2},{sumBurnAction / population:F2}"
                 );
             }
         }

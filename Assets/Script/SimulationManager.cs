@@ -446,7 +446,7 @@ namespace EvolutionLaws.Core
                     }
                 }
 
-                Debug.Log($"[体检报告 - 时间 {GlobalTime:F0}] 物种只数: {totalHerbivores} | 濒临饿死占比: {(float)starvingCount / totalHerbivores:P1} | 正在找饭占比: {(float)foragingCount / totalHerbivores:P1}");
+                //Debug.Log($"[体检报告 - 时间 {GlobalTime:F0}] 物种只数: {totalHerbivores} | 濒临饿死占比: {(float)starvingCount / totalHerbivores:P1} | 正在找饭占比: {(float)foragingCount / totalHerbivores:P1}");
             }
         }
 

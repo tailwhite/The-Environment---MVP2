@@ -31,6 +31,16 @@ namespace EvolutionLaws.Config
         [Header("--- 生理参数 ---")]
         public float MaxHealth = 100f; // 对应 Structure & Vitality Max
 
+        [Tooltip("结构完整度 (物理血量)。归零=身体粉碎")]
+        public float Structure_Max = 100f;
+
+        public float Structure_Current = 100f; // 归零 = 物理粉碎
+
+        [Tooltip("生理健康度 (免疫血量)。归零=病死/毒死")]
+        public float Vitality_Max = 100f;
+
+        public float Vitality_Current = 100f;  // 归零 = 生理衰竭
+
         public float Mass = 1.0f;
         public float Size = 1.0f;
 
@@ -65,6 +75,12 @@ namespace EvolutionLaws.Config
         [Tooltip("攻击伤害")]
         public float AttackDamage = 10.0f;
 
+        [Tooltip("攻击范围 (格子距离)")]
+        public float Attack_Range = 1.5f;
+
+        [Tooltip("攻击间隔 (秒)")]
+        public float Attack_Cooldown = 2.0f;
+
         // ==========================================
         // 5. 感知系统
         // ==========================================
@@ -87,6 +103,13 @@ namespace EvolutionLaws.Config
         // ==========================================
         // 6. 认知与性格
         // ==========================================
+        [Header("Brain & Needs")]
+        [Tooltip("饥饿需求 (0-100)，100极度饥饿")]
+        public float Need_Hunger = 0f;
+
+        public float Need_Safety = 100f;         // 100安全，0恐慌
+        public float Need_Reproduction = 0f;
+
         [Header("--- 认知与性格 ---")]
         [Tooltip("压力恐慌阈值")]
         public float StressPanicThreshold = 80f;

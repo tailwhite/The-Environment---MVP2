@@ -20,7 +20,7 @@ namespace EvolutionLaws.Core
         // ==========================================
         [Header("Plant Growth Settings")]
         [Tooltip("植物基础生长速率 (单位/秒)")]
-        public float Base_Plant_Growth_Rate = 0.5f;
+        public float Base_Plant_Growth_Rate = 1f;
 
         [Tooltip("植物最大生物量上限")]
         public float Max_Plant_Biomass = 100f;
@@ -32,6 +32,12 @@ namespace EvolutionLaws.Core
         public float Optimal_Temp_Min = 15f;
 
         public float Optimal_Temp_Max = 30f;
+
+        public float Plant_Growth_Fertility_Consumption = 0.005f;
+
+        [Header("Soil Fertility Settings")]
+        [Tooltip("土壤肥力自然恢复速率 (单位/秒)")]
+        public float Base_Fertility_Recovery_Rate = 0.002f; // 缓慢恢复肥力
 
         // ==========================================
         // 配置参数 (矿物结晶)
@@ -99,7 +105,10 @@ namespace EvolutionLaws.Core
                     // 2.3 矿物结晶 (缓慢再生)
                     ProcessMineralGrowth(tile, deltaTime);
 
-                    // 2.4 气味扩散 (未来)
+                    // 2.4 肥力自然恢复 (新增)
+                    ProcessFertilityRecovery(tile, deltaTime);
+
+                    // 2.5 气味扩散 (未来)
                     // ProcessScentDiffusion(tile, environment);
                 }
             }
@@ -124,6 +133,25 @@ namespace EvolutionLaws.Core
             // environment.Global_Temperature = BaseTemperature + tempVariation; // 如果需要全局温度变化
 
             // Debug.Log($"[EnvironmentDynamics] 时间: {_simulationTime:F1}s | 光照: {environment.Global_LightLevel:P0}");
+        }
+
+        // ==========================================
+        // 肥力恢复逻辑
+        // ==========================================
+        /// <summary>
+        /// 处理土壤肥力的自然恢复
+        /// </summary>
+        private void ProcessFertilityRecovery(TileData tile, float deltaTime)
+        {
+            // 只有可通行的土地才能恢复肥力
+            if (tile.Movement_Cost >= 10f) return;
+
+            // 自然向基准线 1.0 缓慢恢复
+            if (tile.Soil_Fertility < 1.0f)
+            {
+                tile.Soil_Fertility += Base_Fertility_Recovery_Rate * deltaTime;
+                tile.Soil_Fertility = Mathf.Min(tile.Soil_Fertility, 1.0f);
+            }
         }
 
         // ==========================================
@@ -161,9 +189,24 @@ namespace EvolutionLaws.Core
             float tempFactor = CalculateTemperatureFactor(temperature);
             growthRate *= tempFactor;
 
-            // ━━━ 应用生长 ━━━
-            tile.Biomass_Plant += growthRate * deltaTime;
-            tile.Biomass_Plant = Mathf.Min(tile.Biomass_Plant, Max_Plant_Biomass); // 上限限制
+            // ━━━ 应用生长与消耗 ━━━
+            // 1. 计算理论上能长出的量
+            float actualGrowth = growthRate * deltaTime;
+
+            // 2. 如果加上后超出上限，掐断溢出部分 (只消耗实际成长的部分)
+            if (tile.Biomass_Plant + actualGrowth > Max_Plant_Biomass)
+            {
+                actualGrowth = Max_Plant_Biomass - tile.Biomass_Plant;
+            }
+
+            // 3. 增加植物量
+            tile.Biomass_Plant += actualGrowth;
+
+            // 4. 【新增生态闭环】植物生长会抽取土壤养分，降低肥力
+            tile.Soil_Fertility -= actualGrowth * Plant_Growth_Fertility_Consumption;
+
+            // 保证肥力不被吸到完全没有 (最低保留0.1的贫瘠底线)
+            tile.Soil_Fertility = Mathf.Clamp(tile.Soil_Fertility, 0.1f, 2.0f);
         }
 
         // ==========================================
@@ -251,6 +294,7 @@ namespace EvolutionLaws.Core
             tile.Biomass_Mineral += growthAmount;
             tile.Biomass_Mineral = Mathf.Min(tile.Biomass_Mineral, Max_Mineral_Biomass);
         }
+
         // ==========================================
         // 调试接口
         // ==========================================

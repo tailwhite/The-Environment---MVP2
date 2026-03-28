@@ -234,12 +234,12 @@ namespace EvolutionLaws.Core
             float selfMeatEfficiency = MetabolismUtility.GetDietEfficiency(self, ResourceType.Meat);
 
             // 如果自己是肉食 + 对方体型较小 = 猎物
-            if (selfMeatEfficiency > 0.5f && other.Size <= self.Size * 1.0f)
+            if (selfMeatEfficiency > 0.1f && other.Size <= self.Size * 1.5f)
                 return TargetType.Prey;
 
             // 判断是否是捕食者 (对方是肉食 + 体型大)
             float otherMeatEfficiency = MetabolismUtility.GetDietEfficiency(other, ResourceType.Meat);
-            if (otherMeatEfficiency > 0.5f && other.Size > self.Size * 1.0f && other.Trait_Aggression > 0.5f)
+            if (otherMeatEfficiency > 0.1f && other.Size > self.Size * 0.8f && other.Trait_Aggression > 0.6f)
                 return TargetType.Predator;
 
             // 默认视为无害生物

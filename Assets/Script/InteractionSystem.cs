@@ -164,6 +164,7 @@ namespace EvolutionLaws.Core
             creature.Nutrients = Mathf.Min(creature.Nutrients, creature.Nutrients_Max);// 营养不能超过上限
 
             creature.Energy -= Feeding_Energy_Cost;
+            creature.Lifetime_EnergySpent_Action += Feeding_Energy_Cost;
             // 更新饥饿度
             float nutrientPercent = creature.Nutrients / creature.Nutrients_Max;
             creature.Need_Hunger = Mathf.Lerp(100f, 0f, nutrientPercent);

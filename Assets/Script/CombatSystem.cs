@@ -128,7 +128,7 @@ namespace EvolutionLaws.Core
             if (target.Structure_Current <= 0f && !target.IsDead)
             {
                 target.IsDead = true;
-                Debug.Log($"[CombatSystem] ?? {target.SpeciesID}[{target.UID.Substring(0, 6)}] 被 {attacker.SpeciesID}[{attacker.UID.Substring(0, 6)}] 击杀!");
+                Debug.Log($"[CombatSystem] {target.SpeciesID}[{target.UID.Substring(0, 6)}] 被 {attacker.SpeciesID}[{attacker.UID.Substring(0, 6)}] 击杀!");
 
                 // 攻击者清空目标 (目标已死亡)
                 attacker.TargetCreatureUID = null;

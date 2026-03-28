@@ -230,6 +230,10 @@ namespace EvolutionLaws.Core
             // 消耗能量
             creature.Energy -= Reproduction_Energy_Cost;
             mate.Energy -= Reproduction_Energy_Cost;
+            
+            //记录交配消耗
+            creature.Lifetime_EnergySpent_Action += Reproduction_Energy_Cost;
+            mate.Lifetime_EnergySpent_Action += Reproduction_Energy_Cost;
 
             // 设置怀孕状态 (只有一方怀孕)
             creature.IsPregnant = true;

@@ -363,7 +363,7 @@ namespace EvolutionLaws.UI
             else if (movementCost >= 2.0f && mineralAmount > 10f)
                 return "岩石地 (矿区)";
             else if (movementCost > 1.5f)
-                return "崎岖地面";
+                return "高山地形";
             else if (movementCost > 1.0f)
                 return "平地";
             else

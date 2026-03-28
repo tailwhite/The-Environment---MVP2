@@ -1,8 +1,9 @@
-using UnityEngine;
-using EvolutionLaws.Data;
 using EvolutionLaws.Config;
-using System.Collections.Generic;
 using EvolutionLaws.Core;
+using EvolutionLaws.Data;
+using System.Collections.Generic;
+using System.Drawing;
+using UnityEngine;
 
 namespace EvolutionLaws.Utilities
 {
@@ -147,7 +148,8 @@ namespace EvolutionLaws.Utilities
                     offspring.Attack_Damage *= 1.1f;
                     offspring.Move_Speed *= 0.9f;
                     offspring.Base_Metabolic_Rate *= 1.15f;
-                    Debug.Log("[GeneticsUtility] 变异方向: 巨型化");
+                    Debug.Log("<color=red>[GeneticsUtility] 变异方向: 巨型化</color>");
+                    Debug.Log($"[GeneticsUtility] 体型: {offspring.Size:F2} | 伤害: {offspring.Attack_Damage:F2} | 速度: {offspring.Move_Speed:F2} | 代谢率: {offspring.Base_Metabolic_Rate:F2}");
                     break;
 
                 case 1: // 敏捷化特化 (高速度、小体型、低伤害、高消耗)
@@ -155,21 +157,24 @@ namespace EvolutionLaws.Utilities
                     offspring.Size = Mathf.Clamp(offspring.Size * 0.9f, 0.5f, 3.0f);
                     offspring.Attack_Damage *= 0.85f;
                     offspring.Base_Metabolic_Rate *= 1.1f;
-                    Debug.Log("[GeneticsUtility] 变异方向: 敏捷化");
+                    Debug.Log("<color = green>[GeneticsUtility] 变异方向: 敏捷化</color>");
+                    Debug.Log($"[GeneticsUtility] 速度: {offspring.Move_Speed:F2} | 体型: {offspring.Size:F2} | 伤害: {offspring.Attack_Damage:F2} | 代谢率: {offspring.Base_Metabolic_Rate:F2}");
                     break;
 
                 case 2: // 感知特化 (寻找食物/猎物极强，但更脆弱)
                     offspring.Vision_Range = Mathf.Clamp(offspring.Vision_Range * 1.2f, 5f, 40f);
                     offspring.Scent_Sensitivity *= 1.2f;
                     offspring.Structure_Max *= 0.9f; // 变得更脆
-                    Debug.Log("[GeneticsUtility] 变异方向: 感知强化");
+                    Debug.Log("<color= brown>[GeneticsUtility] 变异方向: 感知强化</color>");
+                    Debug.Log($"[GeneticsUtility] 视觉范围: {offspring.Vision_Range:F2} | 嗅觉灵敏度: {offspring.Scent_Sensitivity:F2} | 结构值: {offspring.Structure_Max:F2}");
                     break;
 
                 case 3: // 节能特化 (极低消耗，但丧失战斗力和速度)
                     offspring.Base_Metabolic_Rate = Mathf.Clamp(offspring.Base_Metabolic_Rate * 0.8f, 0.2f, 5f);
                     offspring.Move_Speed *= 0.9f;
                     offspring.Vision_Range *= 0.9f;
-                    Debug.Log("[GeneticsUtility] 变异方向: 节能化");
+                    Debug.Log("<color=yellow>[GeneticsUtility] 变异方向: 节能化</color>");
+                    Debug.Log($"[GeneticsUtility] 代谢率: {offspring.Base_Metabolic_Rate:F2} | 速度: {offspring.Move_Speed:F2} | 视觉范围: {offspring.Vision_Range:F2}");
                     break;
             }
 
