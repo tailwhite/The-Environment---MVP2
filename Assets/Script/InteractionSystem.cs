@@ -156,8 +156,16 @@ namespace EvolutionLaws.Core
                 tile.Biomass_Meat -= actualAmount;
             else if (bestResource == ResourceType.Mineral)
                 tile.Biomass_Mineral -= actualAmount;
+            // 【核心调整】：肉类拥有极高的能量密度，结算时强行给予高额杠杆倍率
+            float nutrientMultiplier = 1.0f;
+            if (bestResource == ResourceType.Meat)
+            {
+                nutrientMultiplier = 4.0f; // 吃一口肉抵得上吃四口草，符合真实生态链的能量富集逻辑
+            }
+
             // 增加生物营养
-            float gainedNutrients = actualAmount * bestEfficiency;
+            float gainedNutrients = actualAmount * bestEfficiency * nutrientMultiplier;
+
             // 更新生物状态
             creature.Nutrients += gainedNutrients;
             // 夹紧上限

@@ -61,7 +61,7 @@ namespace EvolutionLaws.Core
                 // ──────────────────────────────────
                 // 阶段 2: 视觉感知 (其他生物)
                 // ──────────────────────────────────
-                PerceiveCreatures(creature, creatures);
+                PerceiveCreatures(creature, creatures, environment);
 
                 // ──────────────────────────────────
                 // 阶段 3: 优先级排序 (威胁 > 食物 > 同类)
@@ -175,7 +175,7 @@ namespace EvolutionLaws.Core
         /// <summary>
         /// 检测视野范围内的其他生物 (同类/捕食者)
         /// </summary>
-        private void PerceiveCreatures(CreatureData self, List<CreatureData> allCreatures)
+        private void PerceiveCreatures(CreatureData self, List<CreatureData> allCreatures, EnvironmentData environment)
         {
             foreach (var other in allCreatures)
             {
@@ -183,9 +183,22 @@ namespace EvolutionLaws.Core
                 if (other.IsDead) continue;
 
                 float distance = Vector2.Distance(self.Position, other.Position);//计算与其他生物的距离
+                // 【生态平衡：环境隐蔽与体型伪装】
+                float effectiveVision = self.Vision_Range;
+                var tile = environment.GetTile(Mathf.FloorToInt(other.Position.x), Mathf.FloorToInt(other.Position.y));
 
-                // 超出视野范围
-                if (distance > self.Vision_Range) continue;
+                // 如果对方脚下的地块有隐蔽草丛
+                if (tile != null && tile.Stealth_Factor > 0f)
+                {
+                    // 对方体型越小，受草丛隐蔽加成越好 (大象藏不住，虫子好藏)
+                    float sizeFactor = Mathf.Clamp01(1.0f / (other.Size + 0.1f));
+                    // 隐蔽度会至多抵消捕食者 80% 的视野！
+                    float hideReduction = self.Vision_Range * (tile.Stealth_Factor * 0.8f * sizeFactor);
+                    effectiveVision -= hideReduction;
+                }
+
+                // 超出受到环境衰减后的实际视野范围，直接看不见
+                if (distance > effectiveVision) continue;
 
                 // TODO: 未来可以加入视野角度检测 (扇形视野)
                 // if (!IsInViewCone(self, other)) continue;

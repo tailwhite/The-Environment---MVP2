@@ -111,6 +111,9 @@ namespace EvolutionLaws.Core
         {
             Debug.Log("[SimulationManager] ========== 开始初始化序列 ==========");
 
+            AllCreatures.Clear();
+            _creatureViews.Clear();
+
             // ──────────────────────────────────
             // 步骤 1: 检查 EnvironmentManager 引用
             // ──────────────────────────────────
@@ -298,15 +301,6 @@ namespace EvolutionLaws.Core
             {
                 TogglePause();
             }
-            // F10键:导出当前配置 (仅在非暂停状态下)
-            if (Input.GetKeyDown(KeyCode.F10))
-            {
-                if (_analyticsSystem != null)
-                {
-                    // 注意：这里的 _environmentSystem 根据你之前的代码可能是大写的 EnvironmentDynamics，请根据实际变量名填写
-                    _analyticsSystem.ExportConfigurationJSON(EnvironmentManager, _environmentSystem, SpeciesConfigs);
-                }
-            }
 
             // 数字键:设置速度 (仅在非暂停状态下)
             if (!_isPaused)
@@ -407,7 +401,7 @@ namespace EvolutionLaws.Core
             // TODO: 更新 Energy/Nutrients/Structure/Vitality
             // TODO: 应用环境压力 (温度/毒性)
             // TODO: 检测死亡条件
-            _metabolismSystem.Tick(AllCreatures, Environment, deltaTime);
+            _metabolismSystem.Tick(AllCreatures, Environment, deltaTime, GlobalTime);
 
             // 阶段 5.5: 繁殖系统 (配偶寻找/基因混合/后代生成)
             _reproductionSystem.Tick(AllCreatures, _blueprintMap, deltaTime);
@@ -469,6 +463,9 @@ namespace EvolutionLaws.Core
             var deadList = AllCreatures.FindAll(c => c.IsDead);
             foreach (var dead in deadList)
             {
+                // ━━━ 将案发现场移交法医系统录入导出表 ━━━
+                _analyticsSystem.RecordDeath(dead);
+
                 // 转化为环境资源
                 var tile = Environment.GetTile((int)dead.Position.x, (int)dead.Position.y);
                 if (tile != null)
@@ -479,17 +476,17 @@ namespace EvolutionLaws.Core
                     if (mineralEfficiency > 0.5f)
                     {
                         // 硅基/食矿生物死亡，主要爆出矿石，附带极少量的肉
-                        tile.Biomass_Mineral += dead.Mass * 40f;// 矿石资源等于生物质量的40倍
-                        tile.Biomass_Meat += dead.Mass * 10f;//肉资源等于生物质量的10倍
+                        tile.Biomass_Mineral += dead.Mass * 40f;
+                        tile.Biomass_Meat += dead.Mass * 20f;
                     }
                     else
                     {
                         // 碳基生物死亡，全部转化为蛋白质 (肉)
-                        tile.Biomass_Meat += dead.Mass * 50f;//肉资源等于生物质量的50倍
+                        tile.Biomass_Meat += dead.Mass * 100f;
                     }
                 }
             }
-            // TODO: 将死亡生物的 Mass 转化为对应格子的 Biomass_Meat
+            // 彻底移除尸体数据
             AllCreatures.RemoveAll(c => c.IsDead);
         }
 
@@ -563,6 +560,9 @@ namespace EvolutionLaws.Core
                 Quaternion.identity
             );
 
+            //安全处理UID，避免异常
+            string safeID = string.IsNullOrEmpty(data.UID) ? "NoID" :
+                (data.UID.Length >= 8 ? data.UID.Substring(0, 8) : data.UID);
             // 设置名称
             viewObject.name = data.Generation > 0
                 ? $"{blueprint.SpeciesID}_G{data.Generation}_{data.UID.Substring(0, 8)}"

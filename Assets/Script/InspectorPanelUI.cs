@@ -102,6 +102,9 @@ namespace EvolutionLaws.UI
         private void RefreshDisplay()
         {
             if (_currentData == null) return;
+            // 安全截取 UID (防止 UID 为空或不足 8 位时崩溃)
+            string displayUID = string.IsNullOrEmpty(_currentData.UID) ? "Unknown" :
+                (_currentData.UID.Length > 8 ? _currentData.UID.Substring(0, 8) : _currentData.UID);
 
             // --- 基础信息 ---
             SetText(UID_Text, $"UID: {_currentData.UID.Substring(0, 8)}..."); // 只显示前8位

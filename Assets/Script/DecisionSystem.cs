@@ -74,19 +74,8 @@ namespace EvolutionLaws.Core
                     RecordDecisionTime(creature);
                     continue;
                 }
-
                 // ──────────────────────────────────
-                // 优先级 2.5: 检查狩猎机会 (肉食动物)
-                // ──────────────────────────────────
-                if (EvaluateHunting(creature))
-                {
-                    SetHuntingBehavior(creature);
-                    RecordDecisionTime(creature);
-                    continue;
-                }
-
-                // ──────────────────────────────────
-                // 优先级 3: 检查饥饿 (寻找食物)
+                // 优先级 2.5: 检查饥饿 (寻找食物)
                 // ──────────────────────────────────
                 if (EvaluateHunger(creature))
                 {
@@ -95,7 +84,7 @@ namespace EvolutionLaws.Core
                     continue;
                 }
                 // ──────────────────────────────────
-                // 优先级 3.5: 检查繁殖需求 (成熟且饱食)
+                // 优先级 3: 检查繁殖需求 (成熟且饱食)
                 // ──────────────────────────────────
                 if (EvaluateReproduction(creature))
                 {
@@ -103,6 +92,16 @@ namespace EvolutionLaws.Core
                     RecordDecisionTime(creature);
                     continue;
                 }
+                // ──────────────────────────────────
+                // 优先级 4: 检查狩猎机会 (肉食动物)
+                // ──────────────────────────────────
+                if (EvaluateHunting(creature))
+                {
+                    SetHuntingBehavior(creature);
+                    RecordDecisionTime(creature);
+                    continue;
+                }
+
                 // ──────────────────────────────────
                 // 默认: 闲逛状态
                 // ──────────────────────────────────
@@ -186,6 +185,11 @@ namespace EvolutionLaws.Core
             // 【行为惯性】：一旦开始觅食，不吃饱(饥饿感归0)就不会停下脚步；平时则等达到 HungerThreshold(被饿急了)才出动
             float threshold = (creature.CurrentBehavior == BehaviorState.Foraging) ? 0f : HungerThreshold;
 
+            float meatEfficiency = MetabolismUtility.GetDietEfficiency(creature, ResourceType.Meat);
+            if (meatEfficiency > 0.1f && creature.CurrentBehavior != BehaviorState.Foraging)
+            {
+                threshold = 20f;
+            }
             // 饥饿度未达到当前阈值
             if (creature.Need_Hunger <= threshold)
                 return false;
@@ -218,12 +222,18 @@ namespace EvolutionLaws.Core
             if (meatEfficiency < 0.1f)
                 return false;
 
-            // 【行为惯性】：狩猎也是进食，一旦杀红了眼，必须吃到肚子撑下(Need_Hunger<=0)才复归平静
+            if (creature.Energy < creature.Energy_Max * 0.4f)
+                return false;
+
             float huntingHungerThreshold = (creature.CurrentBehavior == BehaviorState.Hunting) ? 0f : 20f;
 
-            // 必须饥饿 或者 极具攻击性(嗜血本能)
-            if (creature.Need_Hunger <= huntingHungerThreshold && creature.Trait_Aggression < 0.5f)
-                return false;
+            // 压制滥杀设定，填饱肚子就该停手
+            if (creature.Need_Hunger <= huntingHungerThreshold)
+            {
+                // 如果极其具备攻击性可以多杀两只，但一旦营养储备超过 85%，强制关停狩猎欲望
+                if (creature.Trait_Aggression < 0.8f) return false;
+                if (creature.Nutrients > creature.Nutrients_Max * 0.85f) return false;
+            }
 
             // 检查是否有猎物目标
             if (creature.PerceivedTargets == null || creature.PerceivedTargets.Count == 0)

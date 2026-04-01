@@ -6,6 +6,14 @@ using UnityEngine;
 namespace EvolutionLaws.Data
 {
     // --- 核心枚举定义 ---
+    public enum DeathCause
+    {
+        None,
+        Starvation, // 饿死 (脂肪耗尽导致免疫归零)
+        Killed,     // 被杀 (物理结构被打破/咬死)
+        Environment,// 环境 (温度/毒性等导致免疫归零)
+        OldAge      // 老死 (到达寿命极限)
+    }
 
     public enum LifeStage// 生命周期阶段
     {

@@ -66,6 +66,9 @@ namespace EvolutionLaws.Data
         [Tooltip("是否死亡")]
         public bool IsDead = false;
 
+        [Tooltip("死亡原因 (验尸报告)")]
+        public DeathCause CauseOfDeath = DeathCause.None;
+
         [Tooltip("是否处于假死/休眠状态 (不消耗能量)")]
         public bool IsTorpor = false;       // 假死/休眠状态
 

@@ -29,7 +29,7 @@ namespace EvolutionLaws.Core
         /// <summary>
         /// 对所有生物执行代谢计算
         /// </summary>
-        public void Tick(List<CreatureData> creatures, EnvironmentData environment, float deltaTime)
+        public void Tick(List<CreatureData> creatures, EnvironmentData environment, float deltaTime, float globalTime)
         {
             foreach (var creature in creatures)
             {
@@ -53,12 +53,12 @@ namespace EvolutionLaws.Core
                 // ──────────────────────────────────
                 // 阶段 3: Energy通过消耗营养Nutrients恢复 (仅当未昏迷)
                 // ──────────────────────────────────
-                bool isResting = !creature.IsMoving && !creature.IsFeeding;  // ✅ 判断是否在休息
+                bool isResting = !creature.IsMoving && !creature.IsFeeding;  // 判断是否在休息
 
                 if (isResting && creature.Nutrients > 0)// 只有在处于休息状态时才恢复
                 {
                     // 仅当能量低于 50% 时才开始转换（避免浪费营养）
-                    if (creature.Energy < creature.Energy_Max * 0.5f)
+                    if (creature.Energy < creature.Energy_Max)
                     {
                         // 昏迷时转换效率降低（模拟昏迷状态下代谢缓慢）
                         float efficiencyMultiplier = creature.IsUnconscious ? 0.5f : 1.0f;
@@ -112,9 +112,27 @@ namespace EvolutionLaws.Core
                 // ──────────────────────────────────
                 // 阶段 6: 死亡检测
                 // ──────────────────────────────────
-                if (creature.Structure_Current <= 0 || creature.Vitality_Current <= 0)
+                if (!creature.IsDead)
                 {
-                    creature.IsDead = true;
+                    // 检测老化
+                    if (globalTime - creature.BirthTimestamp >= creature.Max_Lifespan)
+                    {
+                        creature.IsDead = true;
+                        creature.CauseOfDeath = DeathCause.OldAge;
+                    }
+                    // 检测结构损坏 (被攻击)
+                    else if (creature.Structure_Current <= 0)
+                    {
+                        creature.IsDead = true;
+                        creature.CauseOfDeath = DeathCause.Killed;
+                    }
+                    // 检测器官衰竭 (饥饿/毒素)
+                    else if (creature.Vitality_Current <= 0)
+                    {
+                        creature.IsDead = true;
+                        // 判定如果是脂肪亏空导致的体力归零，就是饿死，否则是环境温度致死
+                        creature.CauseOfDeath = creature.Nutrients <= 0 ? DeathCause.Starvation : DeathCause.Environment;
+                    }
                 }
 
                 // ──────────────────────────────────
