@@ -1,5 +1,6 @@
-using UnityEngine;
+using EvolutionLaws.Core;
 using EvolutionLaws.Data;
+using UnityEngine;
 
 namespace EvolutionLaws.View
 {
@@ -74,7 +75,7 @@ namespace EvolutionLaws.View
                 _worldUI.Initialize(data);
             }
 
-            Debug.Log($"[CreatureView] 初始化完成 | UID: {data.UID} | 物种: {data.SpeciesID}");
+            //Debug.Log($"[CreatureView] 初始化完成 | UID: {data.UID} | 物种: {data.SpeciesID}");
         }
 
         // ==========================================
@@ -82,6 +83,8 @@ namespace EvolutionLaws.View
         // ==========================================
         private void Update()//每帧更新,同步位置、缩放和状态
         {
+            if (_data == null || SimulationManager.Instance == null) return;
+
             Vector3 targetPosition = new Vector3(_data.Position.x, _data.Position.y, 0);
             float distance = Vector3.Distance(transform.position, targetPosition);
 
@@ -103,9 +106,15 @@ namespace EvolutionLaws.View
             // 2. 同步缩放 (基于 Size)
             //transform.localScale = Vector3.one * _data.Size;线性缩放可能导致过大或过小,使用幂函数调整缩放曲线
             //float visualScale = Mathf.Sqrt(_data.Size);开方
-            float visualScale = Mathf.Pow(_data.Size, 0.3f);
+            // 假设 age 可以通过 SimulationManager.GlobalTime - _data.BirthTimestamp 算出来
+            float age = SimulationManager.Instance.GlobalTime - _data.BirthTimestamp;
 
-            transform.localScale = Vector3.one * visualScale;
+            // 计算生长比例：如果是成年直接是 1.0；如果是幼年，体型从 0.3 平滑过渡到 1.0
+            float growthProgress = Mathf.Clamp01(age / _data.Maturity_Age);
+            float ageScaleMultiplier = Mathf.Lerp(0.3f, 1.0f, growthProgress);
+
+            // 最终显示的大小 = 基因体型大小 × 年龄比例
+            transform.localScale = Vector3.one * (_data.Size * ageScaleMultiplier);
 
             // 3. 高级状态颜色
             UpdateVisualState();

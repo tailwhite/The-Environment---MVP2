@@ -138,7 +138,7 @@ namespace EvolutionLaws.Data
         // 运行时会从 Config 读取并应用词缀修正
         [Header("--- 行为参数 ---")]
         [Tooltip("移动速度")]
-        public float Move_Speed = 5.0f;
+        public float Move_Speed = 5.0f;//外部表现的值，而基础值 Base_Move_Speed 作为词缀重算的基准
 
         [Tooltip("攻击伤害")]
         public float Attack_Damage = 10.0f;
@@ -151,6 +151,9 @@ namespace EvolutionLaws.Data
 
         [Tooltip("上次攻击时间 (仿真时间)")]
         public float Last_Attack_Time = 0f; // 运行时记录
+
+        //运行时拥有的所有特殊能力标签
+        public HashSet<string> ActiveTags = new HashSet<string>();
 
         // ==========================================
         // 【维度 4】 感知系统 (Senses)
@@ -249,5 +252,107 @@ namespace EvolutionLaws.Data
 
         [Tooltip("温度适应区间 (在此区间外会扣血/增加代谢)")]
         public MinMaxRange Tolerance_Temp = new MinMaxRange { Min = -10, Max = 40 };
+
+        [Tooltip("该生物自身的基因突变率")]
+        public float Mutation_Rate = 0.1f;
+
+        [Tooltip("该生物一胎能生几个 (基因决定)")]
+        public MinMaxRange Offspring_Count = new MinMaxRange { Min = 1, Max = 3 };
+
+        // =========================================
+        //【参与遗传的基础数值】
+        //==========================================
+        [Header("--- 行为能力 (先天基因基础值) ---")]
+        public float Base_Structure_Max = 100f;
+
+        public float Base_Move_Speed = 5.0f;
+        public float Base_Attack_Damage = 10.0f;
+        public float Base_Vision_Range = 15.0f;
+        public float Base_Scent_Sensitivity = 1.0f;
+        public float Base_Max_Lifespan = 300f;
+        public float Base_Maturity_Age = 50f;
+        public float Base_Mutation_Rate = 0.1f;
+
+        [Tooltip("基础温度适应")]
+        public MinMaxRange Base_Tolerance_Temp = new MinMaxRange { Min = -10f, Max = 40f };
+
+        /// <summary>
+        /// 传入全局的词缀配置字典进行重算
+        /// </summary>
+        public void RecalculateStats(Dictionary<string, AffixDefinition> globalAffixDatabase)
+        {
+            // 1. 每次重算前，先用纯净先天基因值 (Base) 覆盖当前面板值
+            Structure_Max = Base_Structure_Max;
+            Move_Speed = Base_Move_Speed;
+            Attack_Damage = Base_Attack_Damage;
+            Vision_Range = Base_Vision_Range;
+            Scent_Sensitivity = Base_Scent_Sensitivity;
+
+            Max_Lifespan = Base_Max_Lifespan;
+            Maturity_Age = Base_Maturity_Age;
+            Mutation_Rate = Base_Mutation_Rate;
+            Tolerance_Temp = new MinMaxRange { Min = Base_Tolerance_Temp.Min, Max = Base_Tolerance_Temp.Max }; // 重置温度抵抗
+
+            ActiveTags.Clear();
+
+            // 定义各个属性的累加乘区
+            float speedMultiplier = 1.0f;
+            float healthMultiplier = 1.0f;
+            float damageMultiplier = 1.0f;
+            float lifespanMultiplier = 1.0f;
+
+            // 2. 遍历身上记录的 词缀ID
+            foreach (string affixID in ActiveAffixes)
+            {
+                if (globalAffixDatabase.TryGetValue(affixID, out AffixDefinition affixDef))
+                {
+                    foreach (string tag in affixDef.GrantedTags)
+                        ActiveTags.Add(tag);
+
+                    foreach (StatModifier mod in affixDef.Modifiers)// 根据属性名和修正类型进行累加
+                    {
+                        switch (mod.StatName)
+                        {
+                            case "Move_Speed":
+                                if (mod.IsMultiplier) speedMultiplier += mod.Value;
+                                else Move_Speed += mod.Value;
+                                break;
+
+                            case "Structure_Max":
+                                if (mod.IsMultiplier) healthMultiplier += mod.Value;
+                                else Structure_Max += mod.Value;
+                                break;
+
+                            case "Attack_Damage":
+                                if (mod.IsMultiplier) damageMultiplier += mod.Value;
+                                else Attack_Damage += mod.Value;
+                                break;
+
+                            case "Max_Lifespan":
+                                if (mod.IsMultiplier) lifespanMultiplier += mod.Value;
+                                else Max_Lifespan += mod.Value;
+                                break;
+
+                            case "Tolerance_Min": // 新增：修改抗寒下限
+                                Tolerance_Temp.Min += mod.Value;
+                                break;
+
+                            case "Tolerance_Max": // 新增：修改耐热上限
+                                Tolerance_Temp.Max += mod.Value;
+                                break;
+                        }
+                    }
+                }
+            }
+
+            // 3. 结算并夹紧边界值 (防止数值爆表或跌破规则底线)
+            Move_Speed = Mathf.Max(0.1f, Move_Speed * speedMultiplier);
+            Structure_Max = Mathf.Max(1.0f, Structure_Max * healthMultiplier);
+            Attack_Damage = Mathf.Max(0.0f, Attack_Damage * damageMultiplier);
+            Max_Lifespan = Mathf.Max(1.0f, Max_Lifespan * lifespanMultiplier);
+
+            // 如果当前血量超出了新的上限，剪裁一下
+            Structure_Current = Mathf.Min(Structure_Current, Structure_Max);
+        }
     }
 }

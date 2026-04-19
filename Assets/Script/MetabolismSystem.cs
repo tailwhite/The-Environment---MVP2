@@ -17,9 +17,9 @@ namespace EvolutionLaws.Core
         // ==========================================
         // 配置参数 (可在Inspector中调整，或从ScriptableObject加载)
         // ==========================================
-        public float Energy_Regen_Rate = 5.0f;        // 每秒恢复量 (静止时)
+        public float Energy_Regen_Rate = 5.0f;        // 每秒营养转化能量值 (静止时)
 
-        public float Nutrient_To_Energy_Rate = 0.5f;  // Nutrients转Energy的效率
+        public float Nutrient_To_Energy_Rate = 1f;  // Nutrients转Energy的效率
         public float Starvation_Damage_Rate = 2.0f;   // 饥饿时每秒损失Vitality
         public float Temp_Penalty_Multiplier = 0.1f;  // 温度偏离每度的代谢惩罚倍率
 
@@ -110,6 +110,29 @@ namespace EvolutionLaws.Core
                 // creature.Vitality_Current -= toxicity * deltaTime;
 
                 // ──────────────────────────────────
+                // 阶段5.5生命周期与成长检测
+                // ──────────────────────────────────
+                float age = globalTime - creature.BirthTimestamp;
+
+                // 幼年期：疯狂长身体
+                if (creature.Stage == LifeStage.Larva)
+                {
+                    // 当年龄达标时，宣告成年
+                    if (age >= creature.Maturity_Age)
+                    {
+                        creature.Stage = LifeStage.Adult;
+                    }
+                }
+                // 成年期跑向老年期
+                else if (creature.Stage == LifeStage.Adult)
+                {
+                    // 假设达到最大寿命的 80% 算作老年
+                    if (age >= creature.Max_Lifespan * 0.8f)
+                    {
+                        creature.Stage = LifeStage.Elder;
+                    }
+                }
+                // ──────────────────────────────────
                 // 阶段 6: 死亡检测
                 // ──────────────────────────────────
                 if (!creature.IsDead)
@@ -120,11 +143,16 @@ namespace EvolutionLaws.Core
                         creature.IsDead = true;
                         creature.CauseOfDeath = DeathCause.OldAge;
                     }
-                    // 检测结构损坏 (被攻击)
                     else if (creature.Structure_Current <= 0)
                     {
                         creature.IsDead = true;
-                        creature.CauseOfDeath = DeathCause.Killed;
+
+                        // 1. 如果在 CombatSystem 里已经定性为他杀，则严格保留，不可篡改！
+                        if (creature.CauseOfDeath != DeathCause.Killed)
+                        {
+                            // 2. 如果没有外力介入，但身体结构却耗尽散架了（例如没能量还强行挪动透支），属于活活累死/饿死
+                            creature.CauseOfDeath = DeathCause.Starvation;
+                        }
                     }
                     // 检测器官衰竭 (饥饿/毒素)
                     else if (creature.Vitality_Current <= 0)
@@ -132,6 +160,10 @@ namespace EvolutionLaws.Core
                         creature.IsDead = true;
                         // 判定如果是脂肪亏空导致的体力归零，就是饿死，否则是环境温度致死
                         creature.CauseOfDeath = creature.Nutrients <= 0 ? DeathCause.Starvation : DeathCause.Environment;
+                    }
+                    if (creature.IsDead && creature.Stage == LifeStage.Larva)
+                    {
+                        Debug.LogWarning($"[验尸] 幼崽夭折! 死因:{creature.CauseOfDeath} | 存活时间:{(globalTime - creature.BirthTimestamp):F1}s | 临终状态: 昏迷={creature.IsUnconscious}, 体力={creature.Energy:F1}, 营养={creature.Nutrients:F1}");
                     }
                 }
 
@@ -165,15 +197,19 @@ namespace EvolutionLaws.Core
         /// </summary>
         private void ApplyAndRecordMetabolism(CreatureData creature, EnvironmentData environment, float deltaTime)
         {
-            // TODO: 添加词缀代价 (需要从ConfigManager读取词缀定义)
-            // foreach (var affixID in creature.ActiveAffixes)
-            // {
-            //     var def = ConfigManager.GetAffix(affixID);
-            //     baseBurn += def.Upkeep_Cost;
-            // }
-
             // 1. 获取基础与环境速率
             float baseBurn = creature.Base_Metabolic_Rate;
+
+            // 【核心】：算上高贵词缀的“基因持有税”
+            foreach (var affixID in creature.ActiveAffixes)
+            {
+                var def = Config.AffixManager.GetAffix(affixID);
+                if (def != null)
+                {
+                    baseBurn += def.Upkeep_Cost;
+                }
+            }
+
             float tempPenalty = CalculateTemperaturePenalty(creature, environment.Global_Temperature);
 
             // 2. 【生态机制】：休息奖励修正系数
@@ -204,14 +240,13 @@ namespace EvolutionLaws.Core
         /// </summary>
         private float CalculateMetabolicBurn(CreatureData creature, EnvironmentData environment)
         {
-            float baseBurn = creature.Base_Metabolic_Rate;// 基础代谢速率
+            float baseBurn = creature.Base_Metabolic_Rate;
 
-            // TODO: 添加词缀代价 (需要从ConfigManager读取词缀定义)
-            // foreach (var affixID in creature.ActiveAffixes)
-            // {
-            //     var def = ConfigManager.GetAffix(affixID);
-            //     baseBurn += def.Upkeep_Cost;
-            // }
+            foreach (var affixID in creature.ActiveAffixes)
+            {
+                var def = Config.AffixManager.GetAffix(affixID);
+                if (def != null) baseBurn += def.Upkeep_Cost;
+            }
 
             // 环境惩罚：温度偏离
             float tempPenalty = CalculateTemperaturePenalty(creature, environment.Global_Temperature);

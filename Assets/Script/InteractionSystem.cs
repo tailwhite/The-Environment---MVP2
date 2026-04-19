@@ -19,9 +19,9 @@ namespace EvolutionLaws.Core
         // 配置参数
         // ==========================================
         [Header("Feeding Settings")]
-        public float Feeding_Interval = 3.0f;           // 进食间隔(秒)
+        public float Feeding_Interval = 1.0f;           // 进食间隔(秒)
 
-        public float Feeding_Amount_Base = 20f;         // 基础进食量
+        public float Feeding_Amount_Base = 30f;         // 基础进食量
         public float Feeding_Energy_Cost = 1.0f;        // 进食动作能量消耗
 
         // ==========================================

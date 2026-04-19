@@ -110,6 +110,11 @@ namespace EvolutionLaws.Core
             target.Structure_Current -= finalDamage;
             target.Structure_Current = Mathf.Max(target.Structure_Current, 0f);
 
+            if (target.Structure_Current <= 0)
+            {
+                target.CauseOfDeath = DeathCause.Killed;
+            }
+
             // ──────────────────────────────────
             // 5. 增加目标压力值 (被攻击会恐慌)
             // ──────────────────────────────────
@@ -119,8 +124,8 @@ namespace EvolutionLaws.Core
             // ──────────────────────────────────
             // 6. 日志输出
             // ──────────────────────────────────
-            Debug.Log($"[CombatSystem] {attacker.SpeciesID}[{attacker.UID.Substring(0, 6)}] 攻击 {target.SpeciesID}[{target.UID.Substring(0, 6)}] | " +
-                      $"伤害: {finalDamage:F1} | 剩余结构: {target.Structure_Current:F1}/{target.Structure_Max}");
+            //Debug.Log($"[CombatSystem] {attacker.SpeciesID}[{attacker.UID.Substring(0, 6)}] 攻击 {target.SpeciesID}[{target.UID.Substring(0, 6)}] | " +
+            //$"伤害: {finalDamage:F1} | 剩余结构: {target.Structure_Current:F1}/{target.Structure_Max}");
 
             // ──────────────────────────────────
             // 7. 检查目标是否死亡
@@ -128,7 +133,7 @@ namespace EvolutionLaws.Core
             if (target.Structure_Current <= 0f && !target.IsDead)
             {
                 target.IsDead = true;
-                Debug.Log($"[CombatSystem] {target.SpeciesID}[{target.UID.Substring(0, 6)}] 被 {attacker.SpeciesID}[{attacker.UID.Substring(0, 6)}] 击杀!");
+                //Debug.Log($"[CombatSystem] {target.SpeciesID}[{target.UID.Substring(0, 6)}] 被 {attacker.SpeciesID}[{attacker.UID.Substring(0, 6)}] 击杀!");
 
                 // 攻击者清空目标 (目标已死亡)
                 attacker.TargetCreatureUID = null;

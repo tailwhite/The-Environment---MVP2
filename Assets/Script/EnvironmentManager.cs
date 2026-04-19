@@ -460,9 +460,9 @@ namespace EvolutionLaws.Core
             if (EnvironmentData == null) return;
 
             // 绘制温度热力图 (可选)
-            for (int y = 0; y < MapHeight; y += 5) // 每5格采样一次,避免性能问题
+            for (int y = 0; y < MapHeight; y += 1) // 每5格采样一次,避免性能问题
             {
-                for (int x = 0; x < MapWidth; x += 5)
+                for (int x = 0; x < MapWidth; x += 1)
                 {
                     var tile = EnvironmentData.GetTile(x, y);
                     if (tile == null) continue;

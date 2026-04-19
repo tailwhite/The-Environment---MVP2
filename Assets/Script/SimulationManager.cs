@@ -3,6 +3,7 @@ using UnityEngine;
 using EvolutionLaws.Data;
 using EvolutionLaws.Config;
 using EvolutionLaws.View;
+using EvolutionLaws.Meta;
 
 namespace EvolutionLaws.Core
 {
@@ -31,6 +32,8 @@ namespace EvolutionLaws.Core
     /// </summary>
     public class SimulationManager : MonoBehaviour
     {
+        public static SimulationManager Instance { get; private set; }
+
         [Header("Spawning Config")]
         [Tooltip("多物种生成配置列表 (在 Inspector 中添加物种)")]
         public List<SpeciesSpawnConfig> SpeciesConfigs = new List<SpeciesSpawnConfig>();
@@ -43,6 +46,9 @@ namespace EvolutionLaws.Core
 
         //环境数据设置
         public EnvironmentData Environment;
+
+        [Header("Event Choices (拖拽进来)")]
+        public List<ChoiceEventData> MVPChoices = new List<ChoiceEventData>();
 
         // ==========================================
         // 管理器引用
@@ -60,6 +66,9 @@ namespace EvolutionLaws.Core
 
         //将ID与生物UI关联起来
         private Dictionary<string, CreatureView> _creatureViews = new Dictionary<string, CreatureView>(); // UID -> View
+
+        // 视图对象池
+        private Queue<CreatureView> _viewPool = new Queue<CreatureView>();
 
         // ==========================================
         // 仿真参数
@@ -93,6 +102,11 @@ namespace EvolutionLaws.Core
         private DecisionSystem _decisionSystem;// 决策系统 (AI行为状态)
         private CombatSystem _combatSystem;// 战斗系统 (攻击/防御)
         private ReproductionSystem _reproductionSystem;// 繁殖系统 (基因混合/后代生成)
+        private EvolutionSystem _evolutionSystem;// 演化系统 (表观遗传/词缀激活)
+        private CataclysmDirector _cataclysmDirector;// 天灾导演 (全局环境事件)
+        private PlayerGodPowerSystem _godPowerSystem;// 上帝操纵系统 (玩家输入事件)
+        private ExtinctionManager _extinctionManager;//系统声明，但目前未启用，等到需要启用时再进行补全
+        public PlayerGodPowerSystem GodPower => _godPowerSystem;
 
         // 环境动态系统 (暴露给面板调节参数)
         [Header("Environment Dynamics System")]
@@ -107,13 +121,26 @@ namespace EvolutionLaws.Core
         // ==========================================
         // 初始化
         // ==========================================
+        private void Awake()
+        {
+            if (Instance == null)
+            {
+                Instance = this;
+            }
+            else
+            {
+                Destroy(gameObject);
+            }
+        }
+
         private void Start()
         {
+            MetaDataManager.Load();
             Debug.Log("[SimulationManager] ========== 开始初始化序列 ==========");
 
             AllCreatures.Clear();
             _creatureViews.Clear();
-
+            AffixManager.Initialize();
             // ──────────────────────────────────
             // 步骤 1: 检查 EnvironmentManager 引用
             // ──────────────────────────────────
@@ -134,7 +161,7 @@ namespace EvolutionLaws.Core
             // ──────────────────────────────────
             if (!EnvironmentManager.IsInitialized)
             {
-                Debug.LogError("[SimulationManager] ❌ 地图初始化失败! 无法生成生物");
+                Debug.LogError("[SimulationManager]  地图初始化失败! 无法生成生物");
                 return;
             }
 
@@ -144,12 +171,12 @@ namespace EvolutionLaws.Core
             if (EnvironmentManager.EnvironmentData != null)
             {
                 Environment = EnvironmentManager.EnvironmentData;
-                Debug.Log($"[SimulationManager] ✅ 地图数据已获取: {Environment.MapName} ({Environment.Width}x{Environment.Height})");
+                Debug.Log($"[SimulationManager]  地图数据已获取: {Environment.MapName} ({Environment.Width}x{Environment.Height})");
             }
             else
             {
                 // 后备方案:创建空地图
-                Debug.LogWarning("[SimulationManager] ⚠️ 地图数据为空,使用后备方案");
+                Debug.LogWarning("[SimulationManager]  地图数据为空,使用后备方案");
                 Environment = new EnvironmentData(100, 100);
                 Environment.MapName = "Fallback_Empty_World";
             }
@@ -165,10 +192,15 @@ namespace EvolutionLaws.Core
             _decisionSystem = new DecisionSystem();
             _combatSystem = new CombatSystem();
             _reproductionSystem = new ReproductionSystem();
+
+            _cataclysmDirector = new CataclysmDirector();
+            _godPowerSystem = new PlayerGodPowerSystem();
+            _evolutionSystem = new EvolutionSystem(_godPowerSystem);
+            _extinctionManager = new ExtinctionManager(); // 初始化灭绝系统
             //_environmentSystem = new EnvironmentDynamicsSystem();由unity编辑器中调用
 
             //数据分析系统 (用于收集统计数据，未来可扩展为独立模块)
-            _analyticsSystem = new DataAnalyticsSystem(); // 👈 新增实例
+            _analyticsSystem = new DataAnalyticsSystem();
             _analyticsSystem.Initialize();
 
             BuildBlueprintMap();// 构建蓝图映射表，供繁殖系统使用
@@ -203,7 +235,24 @@ namespace EvolutionLaws.Core
                 Debug.LogWarning("[SimulationManager]  SpeciesConfigs 列表为空,跳过生物生成");
                 return;
             }
-
+            if (MetaDataManager.Current != null && MetaDataManager.Current.DeployedSpecies != null)
+            {
+                foreach (var config in SpeciesConfigs)
+                {
+                    if (config.Blueprint != null && MetaDataManager.Current.DeployedSpecies.TryGetValue(config.Blueprint.SpeciesID, out int deployedCount))
+                    {
+                        // 覆盖数量，为 0 时相当于不启用
+                        config.SpawnCount = deployedCount;
+                        config.Enabled = deployedCount > 0;
+                    }
+                    else
+                    {
+                        // 大厅没分配的，直接关掉
+                        config.SpawnCount = 0;
+                        config.Enabled = false;
+                    }
+                }
+            }
             int totalSpawned = 0;
 
             // 遍历所有物种配置
@@ -278,16 +327,31 @@ namespace EvolutionLaws.Core
         private void Update()
         {
             HandleTimeControlInput();
+
             // 仿真循环 (暂停时不更新)
             if (!_isPaused)
             {
                 _accumulator += Time.deltaTime * TimeScale;
 
-                while (_accumulator >= FixedDeltaTime)
+                int maxTicksPerFrame = 3;
+                float currentStep = FixedDeltaTime;
+
+                if (_accumulator > currentStep * maxTicksPerFrame)
                 {
-                    Tick(FixedDeltaTime);
-                    _accumulator -= FixedDeltaTime;
+                    currentStep = _accumulator / maxTicksPerFrame;
                 }
+
+                while (_accumulator >= currentStep)
+                {
+                    Tick(currentStep);
+                    _accumulator -= currentStep;
+                }
+            }
+
+            // 神力系统的输入和生命周期倒计时，放在外部以便不受物理步长限制，但受速率影响
+            if (Environment != null && Camera.main != null && !_isPaused)
+            {
+                _godPowerSystem.TickAndHandleInput(Environment, Camera.main, Time.deltaTime * TimeScale);
             }
         }
 
@@ -323,7 +387,7 @@ namespace EvolutionLaws.Core
         // ==========================================
         // 暂停/继续切换
         // ==========================================
-        private void TogglePause()
+        public void TogglePause()
         {
             _isPaused = !_isPaused;
 
@@ -344,7 +408,7 @@ namespace EvolutionLaws.Core
         // ==========================================
         // 设置时间缩放
         // ==========================================
-        private void SetTimeScale(float scale)
+        public void SetTimeScale(float scale)
         {
             TimeScale = scale;
             Debug.Log($"[SimulationManager] 时间缩放设置为: {TimeScale}x");
@@ -366,7 +430,8 @@ namespace EvolutionLaws.Core
         private void Tick(float deltaTime)
         {
             GlobalTime += deltaTime;
-
+            //天灾导演系统 (根据时间轴触发环境事件)
+            _cataclysmDirector.Tick(Environment, GlobalTime);
             // ───────────────────────────────
             // 阶段 1: 环境系统更新
             // ────────────────────────────────────
@@ -411,7 +476,7 @@ namespace EvolutionLaws.Core
             // TODO: 累积潜力进度 (Potential)
             // TODO: 检测词缀激活条件
             // TODO: 处理繁殖和基因传递
-            // _evolutionSystem.Tick(AllCreatures, deltaTime);
+            _evolutionSystem.Tick(AllCreatures, Environment, deltaTime);
 
             // ────────────────────────────────────
             // 阶段 7: 清理阶段
@@ -421,6 +486,7 @@ namespace EvolutionLaws.Core
             ProcessNewOffspring();
             CleanupDeadCreatures();
 
+            _extinctionManager.Tick(AllCreatures, GlobalTime);
             //数据分析系统 (收集统计数据，未来可扩展为独立模块)
             _analyticsSystem.Tick(AllCreatures, Environment, GlobalTime);
 
@@ -453,6 +519,20 @@ namespace EvolutionLaws.Core
         }
 
         // ==========================================
+        // 公共数据导出接口
+        // ==========================================
+        /// <summary>
+        /// 导出本局的生态数据分析文件
+        /// </summary>
+        public void ExportAnalyticsData()
+        {
+            if (_analyticsSystem != null)
+            {
+                _analyticsSystem.ExportToFile();
+            }
+        }
+
+        // ==========================================
         // 辅助方法 (桩实现)
         // ==========================================
         /// <summary>
@@ -463,9 +543,10 @@ namespace EvolutionLaws.Core
             var deadList = AllCreatures.FindAll(c => c.IsDead);
             foreach (var dead in deadList)
             {
+                _godPowerSystem.AddEnergy(10f, "灵魂消散");
                 // ━━━ 将案发现场移交法医系统录入导出表 ━━━
                 _analyticsSystem.RecordDeath(dead);
-
+                _extinctionManager.RecordDeath(dead);
                 // 转化为环境资源
                 var tile = Environment.GetTile((int)dead.Position.x, (int)dead.Position.y);
                 if (tile != null)
@@ -484,6 +565,12 @@ namespace EvolutionLaws.Core
                         // 碳基生物死亡，全部转化为蛋白质 (肉)
                         tile.Biomass_Meat += dead.Mass * 100f;
                     }
+                }
+                if (_creatureViews.TryGetValue(dead.UID, out var view))
+                {
+                    view.gameObject.SetActive(false);
+                    _viewPool.Enqueue(view);
+                    _creatureViews.Remove(dead.UID);
                 }
             }
             // 彻底移除尸体数据
@@ -524,6 +611,7 @@ namespace EvolutionLaws.Core
 
             foreach (var offspring in offspringList)
             {
+                _godPowerSystem.AddEnergy(2f, "生命诞生");
                 // 1. 添加到数据列表
                 AllCreatures.Add(offspring);
 
@@ -537,7 +625,7 @@ namespace EvolutionLaws.Core
                 // 3. 创建视图 (统一流程)
                 CreateCreatureView(offspring, blueprint);
 
-                Debug.Log($"[SimulationManager] 🎉 后代诞生 | 物种: {blueprint.SpeciesID} | 代数: G{offspring.Generation} | 位置: {offspring.Position}");
+                //Debug.Log($"[SimulationManager] 🎉 后代诞生 | 物种: {blueprint.SpeciesID} | 代数: G{offspring.Generation} | 位置: {offspring.Position}");
             }
         }
 
@@ -547,35 +635,30 @@ namespace EvolutionLaws.Core
         /// </summary>
         private void CreateCreatureView(CreatureData data, SpeciesBlueprint blueprint)
         {
-            if (Creature_Template_Prefab == null)
+            CreatureView view = null;
+
+            // 【对象池提取】：优先从池子里拿，没有才 Instantiate
+            if (_viewPool.Count > 0)
             {
-                Debug.LogError("[SimulationManager] Creature_Template_Prefab 未设置!");
-                return;
+                view = _viewPool.Dequeue();
+                view.gameObject.SetActive(true);
+                view.transform.position = new Vector3(data.Position.x, data.Position.y, 0);
+            }
+            else
+            {
+                if (Creature_Template_Prefab == null) return;
+                var viewObject = Instantiate(
+                    Creature_Template_Prefab,
+                    new Vector3(data.Position.x, data.Position.y, 0),
+                    Quaternion.identity
+                );
+                view = viewObject.GetComponent<CreatureView>();
             }
 
-            // 实例化预制体
-            var viewObject = Instantiate(
-                Creature_Template_Prefab,
-                new Vector3(data.Position.x, data.Position.y, 0),
-                Quaternion.identity
-            );
-
-            //安全处理UID，避免异常
-            string safeID = string.IsNullOrEmpty(data.UID) ? "NoID" :
-                (data.UID.Length >= 8 ? data.UID.Substring(0, 8) : data.UID);
-            // 设置名称
-            viewObject.name = data.Generation > 0
+            // 设置名称与初始化
+            view.gameObject.name = data.Generation > 0
                 ? $"{blueprint.SpeciesID}_G{data.Generation}_{data.UID.Substring(0, 8)}"
                 : $"{blueprint.SpeciesID}_{data.UID.Substring(0, 8)}";
-
-            // 初始化视图
-            var view = viewObject.GetComponent<CreatureView>();
-            if (view == null)
-            {
-                Debug.LogError("[SimulationManager] 预制体缺少 CreatureView 组件!");
-                Destroy(viewObject);
-                return;
-            }
 
             view.Initialize(data, blueprint.DefaultSprite);
 
@@ -593,8 +676,37 @@ namespace EvolutionLaws.Core
         {
             // 1. 从蓝图创建数据
             var data = blueprint.CreateCreatureData(position, GlobalTime);
+            // 1.4 将蓝图生成的生物直接设置为成年，出生时间设为当前时间减去成熟年龄，避免初始状态过于弱小
+            data.BirthTimestamp = GlobalTime - data.Maturity_Age;
+            data.Stage = LifeStage.Adult;
+            //1.5将天生的词缀应用到数据上
+            data.RecalculateStats(AffixManager.GetDatabase());
 
-            // 2. 添加到数据列表
+            if (data.Generation == 0 && MetaDataManager.Current != null)
+            {
+                //1.赋予变异资格）生存潜能
+                foreach (var po in MetaDataManager.Current.EquippedPotentials)
+                {
+                    if (!data.Potential_Keys.Contains(po))
+                    {
+                        data.Potential_Keys.Add(po);
+                        data.Potential_Values.Add(0f); // 进度从 0 开始
+                    }
+                }
+                //2.应用先祖印记）根据玩家当前装备的印记，修改新生生物的基础属性
+                foreach (var mark in MetaDataManager.Current.EquippedMarks)
+                {
+                    if (mark == "微弱抗寒印记")
+                    {
+                        // 稍微修改生物的基础属性，增强一点点抗寒底子
+                        data.Tolerance_Temp.Min -= 5f;
+                        // 在后续日志可以打出来看看：
+                        Debug.Log($"[先祖赐福] 第 0 代受到 {mark} 庇护，基础抗寒能力加强！");
+                    }
+                    // 你可以在这继续写 if (mark == "微弱跑得快印记") { data.Move_Speed += 0.5f; } 等等
+                }
+            }
+            // 2.1 添加到数据列表
             AllCreatures.Add(data);
 
             // 3. 创建视图 (统一流程)

@@ -18,7 +18,7 @@ namespace EvolutionLaws.Core
         // ==========================================
         // 配置参数
         // ==========================================
-        public float HungerThreshold = 50f;       // 饥饿度超过此值触发觅食
+        public float HungerThreshold = 30f;       // 饥饿度超过此值触发觅食
 
         public float EnergyRestThreshold = 0.3f;  // 能量低于30%触发休息
         public float ThreatThreshold = 0.5f;      // 威胁度超过此值触发逃跑

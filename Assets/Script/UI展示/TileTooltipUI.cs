@@ -13,6 +13,8 @@ namespace EvolutionLaws.UI
     /// </summary>
     public class TileTooltipUI : MonoBehaviour
     {
+        public static TileTooltipUI Instance { get; private set; }
+
         // ==========================================
         // 引用
         // ==========================================
@@ -96,6 +98,7 @@ namespace EvolutionLaws.UI
         // ==========================================
         private void Awake()
         {
+            Instance = this;
             _mainCamera = Camera.main;
             if (PanelRoot != null)
             {
@@ -117,7 +120,7 @@ namespace EvolutionLaws.UI
 
         private void Start()
         {
-            // ✅ 调试:检查 EnvironmentManager
+            // 检查 EnvironmentManager
             if (EnvironmentManager == null)
             {
                 Debug.LogError("[TileTooltip] ❌ EnvironmentManager 引用未设置!");
@@ -164,7 +167,15 @@ namespace EvolutionLaws.UI
             // ──────────────────────────────────
             // 如果功能被关闭，直接不执行后续任何逻辑（也不更新位置，也不检测格子）
             if (!_isFeatureEnabled) return;
-
+            //防止在游戏窗口外时，鼠标位置异常导致面板乱飞或报错，所以先检查鼠标是否在屏幕范围内
+            Vector3 mousePos = Input.mousePosition;
+            if (mousePos.x < 0 || mousePos.y < 0 || mousePos.x > Screen.width || mousePos.y > Screen.height)
+            {
+                HidePanel(); // 鼠标移出屏幕外时自动隐藏面板
+                _lastTileX = -1;
+                _lastTileY = -1;
+                return;
+            }
             // 检查是否需要更新
             if (Time.time - _lastUpdateTime < UpdateInterval)
                 return;

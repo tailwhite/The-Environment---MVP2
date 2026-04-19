@@ -15,12 +15,15 @@ namespace EvolutionLaws.View
         // ==========================================
         // UI引用 (在Inspector中拖入)
         // ==========================================
-        [Header("UI Elements")]
-        [Tooltip("健康条(Vitality)填充图片")]
-        public Image HealthBarFill;
+        [Header("UI Elements (SpriteRenderers)")]
+        [Tooltip("健康条(Vitality)的填充物 Transform (用于更改缩放 X)")]
+        public Transform HealthBarFillTransform;
 
-        [Tooltip("能量条(Energy)填充图片")]
-        public Image EnergyBarFill;
+        [Tooltip("健康条(Vitality)的填充物 Renderer (用于更改颜色)")]
+        public SpriteRenderer HealthBarRenderer;
+
+        [Tooltip("能量条(Energy)的填充物 Transform (用于更改缩放 X)")]
+        public Transform EnergyBarFillTransform;
 
         [Tooltip("代数文本")]
         public TextMeshProUGUI GenerationText;
@@ -48,9 +51,6 @@ namespace EvolutionLaws.View
             }
         };
 
-        [Tooltip("能量条颜色")]
-        public Color EnergyColor = new Color(0.3f, 0.7f, 1f); // 淡蓝色
-
         [Tooltip("UI与生物的垂直偏移")]
         public float VerticalOffset = 1.5f;
 
@@ -66,17 +66,6 @@ namespace EvolutionLaws.View
         public void Initialize(CreatureData data)
         {
             _data = data;
-
-            // 初始化文本
-            if (GenerationText != null)
-                GenerationText.text = $"G{data.Generation}";
-
-            if (SpeciesText != null)
-                SpeciesText.text = data.SpeciesID;
-
-            // 初始化颜色
-            if (EnergyBarFill != null)
-                EnergyBarFill.color = EnergyColor;
         }
 
         // ==========================================
@@ -86,37 +75,38 @@ namespace EvolutionLaws.View
         {
             if (_data == null) return;
 
-            // 1. 更新位置 (跟随生物,并保持垂直偏移)
-            transform.position = new Vector3(
-                _data.Position.x,
-                _data.Position.y + VerticalOffset,
-                0
-            );
+            // 1. 位置跟随 (注意：由于它通常是 Creature 的子物体，如果是挂载在本体下，只要调 localPosition 即可，开销更低！)
+            // 如果你的 CreatureWorldUI 是独立在世界里的再用世界坐标，如果是挂在预制体下面，你可以把下列代码屏蔽：
+            // transform.position = new Vector3(_data.Position.x, _data.Position.y + VerticalOffset, 0);
 
-            // 2. 面向摄像机 (Billboard效果)
-            if (BillboardMode && Camera.main != null)
+            // 2. 更新血条 (使用数学 Scale 模拟进度条)
+            if (HealthBarFillTransform != null)
             {
-                transform.rotation = Quaternion.Euler(0, 0, 0);// 重置旋转
-                transform.LookAt(transform.position + Camera.main.transform.rotation * Vector3.forward,
-                                 Camera.main.transform.rotation * Vector3.up);
+                // 计算比例 (防除0)
+                float healthPercent = Mathf.Clamp01(_data.Vitality_Current / Mathf.Max(0.1f, _data.Vitality_Max));
+
+                // 仅修改 localScale 的 X 轴，性能极高
+                Vector3 scale = HealthBarFillTransform.localScale;
+                scale.x = healthPercent;
+                HealthBarFillTransform.localScale = scale;
+
+                // 颜色渐变
+                if (HealthBarRenderer != null)
+                {
+                    HealthBarRenderer.color = HealthColorGradient.Evaluate(healthPercent);
+                }
             }
 
-            // 3. 更新血条
-            if (HealthBarFill != null)
+            // 3. 更新能量条 (如果有布置的话)
+            if (EnergyBarFillTransform != null)
             {
-                float healthPercent = _data.Vitality_Current / _data.Vitality_Max;
-                HealthBarFill.fillAmount = healthPercent;
-                HealthBarFill.color = HealthColorGradient.Evaluate(healthPercent);
+                float energyPercent = Mathf.Clamp01(_data.Energy / Mathf.Max(0.1f, _data.Energy_Max));
+                Vector3 scale = EnergyBarFillTransform.localScale;
+                scale.x = energyPercent;
+                EnergyBarFillTransform.localScale = scale;
             }
 
-            // 4. 更新能量条
-            if (EnergyBarFill != null)
-            {
-                float energyPercent = _data.Energy / _data.Energy_Max;
-                EnergyBarFill.fillAmount = energyPercent;
-            }
-
-            // 5. 隐藏死亡生物的UI
+            // 4. 隐藏死亡生物的UI
             if (_data.IsDead)
             {
                 gameObject.SetActive(false);

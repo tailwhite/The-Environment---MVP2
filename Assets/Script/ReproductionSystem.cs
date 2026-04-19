@@ -230,7 +230,7 @@ namespace EvolutionLaws.Core
             // 消耗能量
             creature.Energy -= Reproduction_Energy_Cost;
             mate.Energy -= Reproduction_Energy_Cost;
-            
+
             //记录交配消耗
             creature.Lifetime_EnergySpent_Action += Reproduction_Energy_Cost;
             mate.Lifetime_EnergySpent_Action += Reproduction_Energy_Cost;
@@ -273,10 +273,15 @@ namespace EvolutionLaws.Core
                 father = allCreatures.Find(c => c.UID == mother.Mate_UID);
             }
 
-            // 确定产仔数量
-            int offspringCount = Mathf.RoundToInt(Random.Range(blueprint.OffspringCount.Min, blueprint.OffspringCount.Max));
+            int offspringCount = Mathf.RoundToInt(Random.Range(mother.Offspring_Count.Min, mother.Offspring_Count.Max));
 
-            Debug.Log($"[ReproductionSystem] 👶 {mother.SpeciesID} 产仔 {offspringCount} 只");
+            // 【生态修复】：限制后代属性，并向母亲收取生育的营养税
+            // 母亲拿出自身当前 60% 的脂肪储备分配给新生儿（如果母亲自己都快饿死了，孩子们出生就离死不远）
+            float totalDonatedNutrients = mother.Nutrients * 0.35f;
+            float nutrientsPerBaby = totalDonatedNutrients / offspringCount;
+            mother.Nutrients -= totalDonatedNutrients;
+
+            Debug.Log($"[ReproductionSystem]  {mother.SpeciesID} 产仔 {offspringCount} 只 | 消耗母体总营养: {totalDonatedNutrients:F1}");
 
             // 生成每只后代
             for (int i = 0; i < offspringCount; i++)
@@ -288,6 +293,13 @@ namespace EvolutionLaws.Core
                 // 使用工具类创建后代数据
                 var offspring = GeneticsUtility.CreateOffspring(blueprint, birthPosition, mother, father, _simulationTime);
 
+                // 【核心限制】：覆盖出生时的默认满负荷属性
+                offspring.Nutrients = nutrientsPerBaby + 50f;
+                // 刚出生的幼崽体力匮乏 (只有 30% 瞬时体力)
+                offspring.Energy = offspring.Energy_Max * 0.5f;
+                // 幼崽免疫力未完全发育
+                offspring.Vitality_Current = offspring.Vitality_Max * 0.8f;
+                offspring.Stage = LifeStage.Larva;
                 // 添加到待生成列表 (由 SimulationManager 统一处理)
                 _pendingOffspring.Add(offspring);
             }

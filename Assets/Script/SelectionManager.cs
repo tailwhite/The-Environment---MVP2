@@ -1,6 +1,8 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 using EvolutionLaws.Data;
 using EvolutionLaws.View;
+using EvolutionLaws.Core;
 
 namespace EvolutionLaws.UI
 {
@@ -26,6 +28,8 @@ namespace EvolutionLaws.UI
         // ==========================================
         private CreatureView _currentSelectedCreature;
 
+        private Camera _mainCamera; // 缓存主相机
+
         // ==========================================
         // 可视化配置
         // ==========================================
@@ -39,14 +43,36 @@ namespace EvolutionLaws.UI
         private Vector3 _originalScale;
         private Color _originalColor;
 
+        private void Start()
+        {
+            _mainCamera = Camera.main; // 在 Start 时缓存，避免每帧执行底层查找
+        }
+
         // ==========================================
         // 输入检测
         // ==========================================
         private void Update()
         {
+            Vector3 mousePos = Input.mousePosition;
+            if (mousePos.x < 0 || mousePos.y < 0 || mousePos.x > Screen.width || mousePos.y > Screen.height)
+            {
+                return;
+            }
             // 检测鼠标左键点击
             if (Input.GetMouseButtonDown(0))
             {
+                // 1. 防穿透：如果点击落在了UI上，直接放弃本次点选
+                if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
+                    return;
+
+                // 2. 状态互斥：如果正捏着"上帝操作技能"蓄势待发，不应误选生物
+                if (SimulationManager.Instance != null &&
+                    SimulationManager.Instance.GodPower != null &&
+                    SimulationManager.Instance.GodPower.CurrentSkill != PlayerGodPowerSystem.SelectedSkill.None)
+                {
+                    return;
+                }
+
                 HandleClick();
             }
 

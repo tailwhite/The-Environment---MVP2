@@ -27,8 +27,19 @@ namespace EvolutionLaws.Core
 
         public float Move_Structure_Wear = 0.1f;       // 移动结构磨损 (每移动1米)
 
+        // === 顶部新增配额设置 ===
         [Header("A* Pathfinding")]
         public float Path_Recalculate_Interval = 1.5f; // 猎物移动时重新寻路的间隔
+
+        // 抗卡顿配额，单帧最多只允许算出 3 条复杂寻路
+        public int Max_AStar_Calculations_Per_Frame = 3;
+
+        private int _astarCalculationsThisFrame = 0;
+
+        // 降频排序机制
+        public float Sort_Interval = 0.3f; // 每 0.3 秒才重新计算一次优先级
+
+        private float _lastSortTime = -999f;
 
         // ==========================================
         // 使用仿真累计时间
@@ -42,6 +53,9 @@ namespace EvolutionLaws.Core
 
         private Dictionary<string, float> _lastPathCalcTime = new Dictionary<string, float>();
 
+        // 排序缓存 (对象池思想)，避免每 0.3 秒都 new 新的列表/装箱
+        private List<KeyValuePair<CreatureData, float>> _sortBuffer = new List<KeyValuePair<CreatureData, float>>();
+
         // ==========================================
         // 核心Tick方法
         // ==========================================
@@ -52,6 +66,27 @@ namespace EvolutionLaws.Core
         {
             _simulationTime += deltaTime;
 
+            // 每帧一开始先重置算力配额
+            _astarCalculationsThisFrame = 0;
+
+            // 【核心修改 2：降频排序】每 0.3 秒才排一次序，大幅节省 CPU 开销
+            if (_simulationTime - _lastSortTime >= Sort_Interval)
+            {
+                _lastSortTime = _simulationTime;
+                // 【性能优化】缓存分数后再排序，避免 O(N log N) 的重复运算浪费
+                _sortBuffer.Clear();
+                for (int i = 0; i < creatures.Count; i++)
+                {
+                    _sortBuffer.Add(new KeyValuePair<CreatureData, float>(creatures[i], GetUrgencyScore(creatures[i])));
+                }
+
+                _sortBuffer.Sort((a, b) => b.Value.CompareTo(a.Value)); // 分数从大到小降序
+
+                for (int i = 0; i < creatures.Count; i++)
+                {
+                    creatures[i] = _sortBuffer[i].Key;
+                }
+            }
             foreach (var creature in creatures)
             {
                 creature.IsMoving = false;
@@ -73,6 +108,7 @@ namespace EvolutionLaws.Core
                 float speedMultiplier = GetSpeedMultiplier(creature.CurrentBehavior);
 
                 // 5. 【新增 A* 导航】获取下一个要经过的转折路点，而不是直接指向终点卡在河边
+                // 这个方法在下面被改造了，会使用上面的配额了
                 Vector2 nextWaypoint = GetNextWaypointViaAStar(creature, targetPos.Value, environment);
 
                 // 6. 计算带“沿墙滑动”保护的下一步位置 (微操防跌跤)
@@ -80,8 +116,7 @@ namespace EvolutionLaws.Core
 
                 // 计算本帧实际产生的位移
                 float actualMoveDist = Vector2.Distance(creature.Position, nextPos);
-                if (actualMoveDist <= 0.001f)
-                    continue;
+                if (actualMoveDist <= 0.001f) continue;
 
                 // 7. 结算本次移动的账单 (体力不够则强制休息)
                 if (!ApplyMovementCost(creature, nextPos, environment, actualMoveDist, speedMultiplier))
@@ -93,6 +128,52 @@ namespace EvolutionLaws.Core
                 // 8. 更新坐标和状态
                 creature.Position = nextPos;
                 creature.IsMoving = true;
+            }
+        }
+
+        // ==========================================
+        // 行为算力调度机制
+        // ==========================================
+        /// <summary>
+        /// 【核心修改 1：动态紧急度】基于生物自身状态（能量、压力、距离）计算算力获取的顺位
+        /// </summary>
+        private float GetUrgencyScore(CreatureData creature)
+        {
+            // 提取关键百分比 (0~100)
+            float energyPercent = (creature.Energy / Mathf.Max(1f, creature.Energy_Max)) * 100f;
+            float hungerPercent = creature.Need_Hunger; // 饥饿度本身就是 0~100
+
+            switch (creature.CurrentBehavior)
+            {
+                case BehaviorState.Fleeing:
+                    // 逃命最急！分数基础 150，被追的越紧（压力值越高），分数越高
+                    return 150f + creature.Stress_Current;
+
+                case BehaviorState.Hunting:
+                    float distToPrey = 10f;
+                    if (creature.TargetPosition.HasValue)
+                    {
+                        distToPrey = Vector2.Distance(creature.Position, creature.TargetPosition.Value);
+                    }
+                    // 捕猎：基础 100，越饿越急，距离越近越急着抢算力做微操 A* 扑咬！
+                    return 100f + hungerPercent - distToPrey;
+
+                case BehaviorState.Foraging:
+                    // 觅食：基础 50，快饿死了就急于寻路
+                    return 50f + hungerPercent;
+
+                case BehaviorState.Socializing:
+                    return 30f; // 找对象的顺位往后排排
+
+                case BehaviorState.Idle:
+                    // 闲逛：就是瞎溜达，距离远近无所谓
+                    return 10f;
+
+                case BehaviorState.Resting:
+                    return 0f; // 睡觉不需要算力
+
+                default:
+                    return 0f;
             }
         }
 
@@ -154,8 +235,7 @@ namespace EvolutionLaws.Core
         private Vector2 GetNextWaypointViaAStar(CreatureData creature, Vector2 finalTarget, EnvironmentData envData)
         {
             bool needsNewPath = false;
-
-            // 情景 1: 没路，或者路太老过期了
+            // 1. 首先判断是否需要重新计算路径：没有路径，或者路径过旧，或者目标点已经偏移了
             if (!_activePaths.ContainsKey(creature.UID) ||
                (_simulationTime - _lastPathCalcTime.GetValueOrDefault(creature.UID, 0f) > Path_Recalculate_Interval))
             {
@@ -163,17 +243,24 @@ namespace EvolutionLaws.Core
             }
             else
             {
-                // 情景 2: 猎物移动距离过远(>2格子)，导致原航线的终点作废，需重新导航
                 var path = _activePaths[creature.UID];
                 if (path.Count > 0 && Vector2.Distance(path[path.Count - 1], finalTarget) > 2.0f)
                 {
                     needsNewPath = true;
                 }
             }
-
+            // 2. 如果需要新路径，先检查配额再计算
             if (needsNewPath)
             {
-                // 呼叫底层的 A* 引擎进行烧脑运算
+                // 【Time-Slicing 拦截网】：CPU 保护机制
+                if (_astarCalculationsThisFrame >= Max_AStar_Calculations_Per_Frame)
+                {
+                    // 本帧算力穷尽，暂时朝着直线撞墙走一下以作妥协缓冲，下帧它依旧会被标记需要演算！
+                    return finalTarget;
+                }
+
+                _astarCalculationsThisFrame++; // 开销+1
+                // 执行 A* 寻路
                 var newPath = SimpleAStar.FindPath(creature.Position, finalTarget, envData);
                 if (newPath != null && newPath.Count > 0)
                 {
@@ -182,15 +269,13 @@ namespace EvolutionLaws.Core
                 }
                 else
                 {
-                    // 彻底没有路 (被墙定死或者是孤岛)，降级为走直线尽力靠近
                     return finalTarget;
                 }
             }
 
-            // 路点提取与队列管理
+            // 路点提取与队列管理 (原样保持不变)
             if (_activePaths.TryGetValue(creature.UID, out var currentPath) && currentPath.Count > 0)
             {
-                // 如果极其靠近当前的第一个途径点，弹出节点，前往下一站
                 if (Vector2.Distance(creature.Position, currentPath[0]) < 0.4f)
                 {
                     currentPath.RemoveAt(0);
@@ -198,11 +283,11 @@ namespace EvolutionLaws.Core
 
                 if (currentPath.Count > 0)
                 {
-                    return currentPath[0]; // 返回前方导航节点
+                    return currentPath[0];
                 }
             }
 
-            return finalTarget; // 路径耗尽，直达终点
+            return finalTarget;
         }
 
         /// <summary>
@@ -291,6 +376,8 @@ namespace EvolutionLaws.Core
                     // 猎物已被吃掉/逃脱
                     creature.TargetCreatureUID = null;
                     creature.TargetPosition = null;
+                    //主动清空它的 A* 缓存路径，防止它依然顺着记忆中的错误旧路点奔跑导致鬼畜
+                    _activePaths.Remove(creature.UID);
                 }
             }
 
@@ -381,6 +468,28 @@ namespace EvolutionLaws.Core
                 public float GCost, HCost;
                 public float FCost => GCost + HCost;
                 public Node Parent;
+
+                // 重置数据的方法，供对象池重复使用
+                public void Init(int x, int y, float gCost = 0, float hCost = 0, Node parent = null)
+                {
+                    this.X = x; this.Y = y;
+                    this.GCost = gCost; this.HCost = hCost;
+                    this.Parent = parent;
+                }
+            }
+
+            // 【性能优化】：静态容器与对象池，彻底消除单次寻路的 GC 内存消耗！
+            private static List<Node> _openList = new List<Node>(1000);
+
+            private static HashSet<int> _closedSet = new HashSet<int>(1000);
+            private static Dictionary<int, Node> _nodeDict = new Dictionary<int, Node>(1000);
+            private static Queue<Node> _nodePool = new Queue<Node>(2000);
+
+            private static Node GetNodeFromPool(int x, int y, float gCost = 0, float hCost = 0, Node parent = null)
+            {
+                Node node = _nodePool.Count > 0 ? _nodePool.Dequeue() : new Node();
+                node.Init(x, y, gCost, hCost, parent);
+                return node;
             }
 
             public static List<Vector2> FindPath(Vector2 startPos, Vector2 targetPos, EnvironmentData envData)
@@ -392,42 +501,46 @@ namespace EvolutionLaws.Core
                 if (startX < 0 || startX >= envData.Width || startY < 0 || startY >= envData.Height) return null;
                 if (targetX < 0 || targetX >= envData.Width || targetY < 0 || targetY >= envData.Height) return null;
 
-                List<Node> openList = new List<Node>();
-                HashSet<int> closedSet = new HashSet<int>();
-                Dictionary<int, Node> nodeDict = new Dictionary<int, Node>();
+                // 重置容器而不是 new 新的
+                _openList.Clear();
+                _closedSet.Clear();
+                _nodeDict.Clear();
 
                 int GetIndex(int x, int y) => y * envData.Width + x;
 
-                Node startNode = new Node { X = startX, Y = startY, GCost = 0, HCost = GetHeuristicDist(startX, startY, targetX, targetY) };
-                openList.Add(startNode);
-                nodeDict.Add(GetIndex(startX, startY), startNode);
+                Node startNode = GetNodeFromPool(startX, startY, 0, GetHeuristicDist(startX, startY, targetX, targetY));
+                _openList.Add(startNode);
+                _nodeDict.Add(GetIndex(startX, startY), startNode);
 
                 int iterations = 0;
                 int maxIterations = 1500; // 防止复杂迷宫卡顿死循环
 
-                while (openList.Count > 0 && iterations < maxIterations)
+                List<Vector2> resultPath = null; // 默认为Null
+
+                while (_openList.Count > 0 && iterations < maxIterations)
                 {
                     iterations++;
 
                     // 获取期望代价最低的格子
-                    Node current = openList[0];
+                    Node current = _openList[0];
                     int currentIndex = 0;
-                    for (int i = 1; i < openList.Count; i++)
+                    for (int i = 1; i < _openList.Count; i++)
                     {
-                        if (openList[i].FCost < current.FCost || (openList[i].FCost == current.FCost && openList[i].HCost < current.HCost))
+                        if (_openList[i].FCost < current.FCost || (_openList[i].FCost == current.FCost && _openList[i].HCost < current.HCost))
                         {
-                            current = openList[i];
+                            current = _openList[i];
                             currentIndex = i;
                         }
                     }
 
-                    openList.RemoveAt(currentIndex);
-                    closedSet.Add(GetIndex(current.X, current.Y));
+                    _openList.RemoveAt(currentIndex);
+                    _closedSet.Add(GetIndex(current.X, current.Y));
 
                     // 如果抵达
                     if (current.X == targetX && current.Y == targetY)
                     {
-                        return RetracePath(current);
+                        resultPath = RetracePath(current);
+                        break; // 找到了不要直接 Return，要先执行最后的回收！
                     }
 
                     // 开始探寻周边的八个方向
@@ -443,7 +556,7 @@ namespace EvolutionLaws.Core
                             if (neighborX < 0 || neighborX >= envData.Width || neighborY < 0 || neighborY >= envData.Height) continue;
 
                             int neighborIndex = GetIndex(neighborX, neighborY);
-                            if (closedSet.Contains(neighborIndex)) continue; // 已探寻不再走
+                            if (_closedSet.Contains(neighborIndex)) continue; // 已探寻不再走
 
                             var tile = envData.GetTile(neighborX, neighborY);
                             if (tile.Movement_Cost >= 10f) continue; // 核心：绝对不可通行（水、山区墙壁）跳过
@@ -452,25 +565,32 @@ namespace EvolutionLaws.Core
                             float distCost = (x != 0 && y != 0) ? 1.414f : 1.0f;
                             float moveCost = current.GCost + distCost * tile.Movement_Cost;
 
-                            if (!nodeDict.TryGetValue(neighborIndex, out Node neighborNode))
+                            if (!_nodeDict.TryGetValue(neighborIndex, out Node neighborNode))
                             {
-                                neighborNode = new Node { X = neighborX, Y = neighborY };
-                                nodeDict.Add(neighborIndex, neighborNode);
+                                neighborNode = GetNodeFromPool(neighborX, neighborY);
+                                _nodeDict.Add(neighborIndex, neighborNode);
                             }
 
-                            if (moveCost < neighborNode.GCost || !openList.Contains(neighborNode))
+                            if (moveCost < neighborNode.GCost || !_openList.Contains(neighborNode))
                             {
                                 neighborNode.GCost = moveCost;
                                 neighborNode.HCost = GetHeuristicDist(neighborX, neighborY, targetX, targetY);
                                 neighborNode.Parent = current;
 
-                                if (!openList.Contains(neighborNode))
-                                    openList.Add(neighborNode);
+                                if (!_openList.Contains(neighborNode))
+                                    _openList.Add(neighborNode);
                             }
                         }
                     }
                 }
-                return null; // 被水域彻底包死孤岛，无路可达
+
+                // 【回收逻辑】：将这趟寻路里创建的所有 Node 放回对象池重复利用
+                foreach (var node in _nodeDict.Values)
+                {
+                    _nodePool.Enqueue(node);
+                }
+
+                return resultPath;
             }
 
             // 返回格式化的导航节点列

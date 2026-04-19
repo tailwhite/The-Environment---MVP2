@@ -116,4 +116,108 @@ namespace EvolutionLaws.Data
             return value >= Min && value <= Max;
         }
     }
+
+    // ==========================================
+    // 蓝图配置结构体 (数据降维)
+    // ==========================================
+    [System.Serializable]
+    public struct PhysiologyConfig
+    {
+        [Tooltip("结构完整度上限 (物理血量)")]
+        public float MaxHealth;
+
+        [Tooltip("质量以及碰撞体积大小倍率")]
+        public float Mass;
+
+        [Tooltip("体型系数 (1.0 = 标准)")]
+        public float Size;
+
+        [Tooltip("瞬时体力上限 (用于奔跑和攻击)")]
+        public float MaxEnergy;
+
+        [Tooltip("长期营养储备上限 (脂肪，影响抗饿能力)")]
+        public float MaxNutrients;
+
+        [Tooltip("基础耗能乘数 (待机时的能量流失速度)")]
+        public float BaseMetabolicRate;
+    }
+
+    [System.Serializable]
+    public struct ActionConfig
+    {
+        [Tooltip("移动速度 (米/秒)")]
+        public float MoveSpeed;
+
+        [Tooltip("攻击伤害 (基础值)")]
+        public float AttackDamage;
+
+        [Tooltip("攻击范围")]
+        public float AttackRange;
+
+        [Tooltip("攻击冷却时间")]
+        public float AttackCooldown;
+    }
+
+    [System.Serializable]
+    public struct SenseConfig
+    {
+        [Tooltip("视觉范围 (米)")]
+        public float VisionRange;
+
+        [Tooltip("视觉角度 (度)")]
+        public float VisionAngle;
+
+        [Tooltip("嗅觉灵敏度 (1.0 = 标准)")]
+        public float ScentSensitivity;   // 1.0 = 标准
+
+        [Tooltip("听觉阈值 (0.0 - 1.0)，越低越灵敏")]
+        public float HearingThreshold;   // 越低越灵敏
+
+        [Tooltip("同时关注的目标数量上限")]
+        public int AttentionCap;            // 同时关注目标数
+    }
+
+    [System.Serializable]
+    public struct BrainConfig
+    {
+        [Tooltip("压力恐慌阈值 (0.0 - 1.0)，超过后进入恐慌状态")]
+        public float StressPanicThreshold;
+
+        [Tooltip("压力恢复阈值 (0.0 - 1.0)，低于后退出恐慌状态")]
+        public float StressRecoverThreshold;
+
+        [Tooltip("性格：攻击性 (0=温顺, 1=狂暴)")]
+        [Range(0, 1)]
+        public float TraitAggression;
+
+        [Range(0, 1)]
+        [Tooltip("性格：好奇心 (0=保守, 1=冒险)")]
+        public float TraitCuriosity;
+
+        [Range(0, 1)]
+        [Tooltip("性格：社交性 (0=独行, 1=群居)")]
+        public float TraitTenacity;
+    }
+
+    [System.Serializable]
+    public struct ReproductionConfig
+    {
+        [Tooltip("成熟年龄 (秒) - 达到此年龄才能繁殖")]
+        public float MaturityAge;
+
+        [Tooltip("最大寿命 (秒) - 达到此年龄后死亡概率增加")]
+        public float MaxLifespan;
+
+        [Tooltip("怀孕时长 (秒)")]
+        public float PregnancyDuration;
+
+        [Tooltip("繁殖冷却时间 (秒) - 繁殖后需要冷却才能再次繁殖")]
+        public float ReproductionCooldown;
+
+        [Tooltip("繁衍后代个数")]
+        public MinMaxRange OffspringCount;
+
+        [Tooltip("基因突变率 (0.0 - 1.0)，每个基因有此概率发生突变")]
+        [Range(0f, 1f)] public float MutationRate;
+    }
 }

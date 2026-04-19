@@ -10,6 +10,13 @@ using UnityEngine;
 
 namespace EvolutionLaws.Data
 {
+    [CreateAssetMenu(fileName = "New_AffixDatabase", menuName = "Evolution Laws/Affix Database")]
+    public class AffixDatabaseSO : ScriptableObject
+    {
+        [Header("全局词缀配置表")]
+        public List<AffixDefinition> Affixes = new List<AffixDefinition>();
+    }
+
     // 词缀的静态定义 (规则书)
     [System.Serializable]
     public class AffixDefinition// 词缀定义类——————用来定义词缀的属性和效果
@@ -21,15 +28,17 @@ namespace EvolutionLaws.Data
         [TextArea]//在unity inspector显示多行文本框
         public string Description;// 词缀描述
 
-        // 属性修正列表
-        public List<StatModifier> Modifiers = new List<StatModifier>();// [维度6] 属性修正
+        // [属性层面]：用你已经写好的 StatModifier 进行属性修饰
+        public List<StatModifier> Modifiers = new List<StatModifier>();
+
+        // 【行为层面】：赋予生物的特殊能力标签！(如 "Photosynthesis", "NightVision")
+        public List<string> GrantedTags = new List<string>();
 
         // [维度7] 代价与限制
         public float Upkeep_Cost = 0f; // 代谢税 (每秒额外耗能)
 
         public List<string> Incompatible_IDs = new List<string>(); // 互斥词缀
 
-        //说白了就是一个字符串集合，后续用途是用来存放与该词缀互斥的其他词缀ID
         // 条件规则 (例如: 在水中速度减半)
         public List<ContextRule> ContextRules = new List<ContextRule>();
     }

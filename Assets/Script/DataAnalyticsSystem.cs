@@ -34,17 +34,17 @@ namespace EvolutionLaws.Core
         public void RecordDeath(CreatureData deadCreature)
         {
             string sp = deadCreature.SpeciesID;
-            if (!_deathStatsGrouped.ContainsKey(sp))
+            if (!_deathStatsGrouped.ContainsKey(sp))//如果之前没有这个物种的记录，先初始化一个新的字典
             {
                 _deathStatsGrouped[sp] = new Dictionary<DeathCause, int>();
             }
 
-            if (!_deathStatsGrouped[sp].ContainsKey(deadCreature.CauseOfDeath))
+            if (!_deathStatsGrouped[sp].ContainsKey(deadCreature.CauseOfDeath))//如果之前没有这个死因的记录，先初始化为0
             {
                 _deathStatsGrouped[sp][deadCreature.CauseOfDeath] = 0;
             }
 
-            _deathStatsGrouped[sp][deadCreature.CauseOfDeath]++;
+            _deathStatsGrouped[sp][deadCreature.CauseOfDeath]++;//最后把对应物种对应死因的数量加1
         }
 
         public void Tick(List<CreatureData> creatures, EnvironmentData environment, float globalTime)
