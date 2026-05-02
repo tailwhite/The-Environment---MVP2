@@ -9,6 +9,7 @@ namespace EvolutionLaws.Core
     {
         public float Max_Genetic_Complexity = 2.0f;
         private PlayerGodPowerSystem _godPowerSystem;
+
         public EvolutionSystem(PlayerGodPowerSystem godPowerSystem)
         {
             _godPowerSystem = godPowerSystem;
@@ -116,9 +117,18 @@ namespace EvolutionLaws.Core
 
                 creature.RecalculateStats(AffixManager.GetDatabase());
                 _godPowerSystem.AddEnergy(100f, $"基因飞跃：{creature.SpeciesID} 觉醒了 {affixID}！");
-                Debug.Log($"<color=cyan>[EvolutionSystem] 基因飞跃！{creature.SpeciesID} 顶住大寒潮的极限施压，觉醒了: {affixID}</color>");
+                if (EvolutionLaws.UI.NotificationUIManager.Instance != null)
+                {
+                    EvolutionLaws.UI.NotificationUIManager.Instance.ShowFloatingText(creature.Position, $"进化:{affixID}!", Color.red);
+                    // 【追踪优化1】加上具体坐标，方便你手动把镜头移过去
+                    EvolutionLaws.UI.NotificationUIManager.Instance.AddLogMessage($"【进化】{creature.SpeciesID} 绝境中觉醒: {affixID} 于坐标({creature.Position.x:F0}, {creature.Position.y:F0})", Color.yellow);
+                }
+                // 【追踪优化2】在 Unity Editor 的 Scene 窗口（不仅是 Game 窗口）画一根直冲云霄的超级射线，保留 5 秒！
+                // 这样你切到 Scene 面板一眼就能看到哪里发生了变异！
+                Debug.DrawRay(new Vector3(creature.Position.x, creature.Position.y, 0), Vector3.up * 50f, Color.red, 5f);
 
-                Debug.Log($"<color=cyan>[EvolutionSystem] 基因飞跃！{creature.SpeciesID} 在漫长岁月中觉醒了新器官/能力: {affixID}</color>");
+                // 【追踪优化3】让控制台的日志支持点击对象高亮（传递 UID 方便溯源）
+                Debug.Log($"<color=cyan>[EvolutionSystem] 📍 坐标({creature.Position.x:F1},{creature.Position.y:F1}) 发生基因飞跃！{creature.SpeciesID} (UID:{creature.UID.Substring(0, 4)}) 觉醒了: {affixID}</color>");
             }
 
             // 无论成功还是失败，均从进度列表中抹除

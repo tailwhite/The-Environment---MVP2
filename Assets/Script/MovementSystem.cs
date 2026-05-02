@@ -493,7 +493,7 @@ namespace EvolutionLaws.Core
             }
 
             public static List<Vector2> FindPath(Vector2 startPos, Vector2 targetPos, EnvironmentData envData)
-            {
+            {//获取生物的当前位置和目标位置的格子坐标，返回从起点到目标的路径点列表（如果不可达则返回 null）
                 int startX = Mathf.FloorToInt(startPos.x); int startY = Mathf.FloorToInt(startPos.y);
                 int targetX = Mathf.FloorToInt(targetPos.x); int targetY = Mathf.FloorToInt(targetPos.y);
 
@@ -571,7 +571,7 @@ namespace EvolutionLaws.Core
                                 _nodeDict.Add(neighborIndex, neighborNode);
                             }
 
-                            if (moveCost < neighborNode.GCost || !_openList.Contains(neighborNode))
+                            if (moveCost < neighborNode.GCost || !_openList.Contains(neighborNode))// 发现更优路径或者之前没见过这个格子
                             {
                                 neighborNode.GCost = moveCost;
                                 neighborNode.HCost = GetHeuristicDist(neighborX, neighborY, targetX, targetY);

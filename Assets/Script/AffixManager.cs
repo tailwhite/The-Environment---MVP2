@@ -85,7 +85,7 @@ namespace EvolutionLaws.Config
             }
         }
 
-        // 👇 新增：O(1) 高效判断任意两个词缀是否互斥
+        //O(1) 高效判断任意两个词缀是否互斥
         public static bool AreIncompatible(string affixA, string affixB)
         {
             if (_incompatibilityMap.TryGetValue(affixA, out var set))

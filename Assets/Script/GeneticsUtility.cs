@@ -86,7 +86,7 @@ namespace EvolutionLaws.Utilities
             // ━━━━━━━━━━━━━━━━━━━━━━━━
             InheritAffixes(offspring, mother, father);
             InheritPotentials(offspring, mother, father);
-            Debug.Log($"[GeneticsUtility] 基因继承完成 | 体型: {offspring.Size:F2} | 速度: {offspring.Base_Move_Speed:F2}");
+            //Debug.Log($"[GeneticsUtility] 基因继承完成 | 体型: {offspring.Size:F2} | 速度: {offspring.Base_Move_Speed:F2}");
         }
 
         // ==========================================

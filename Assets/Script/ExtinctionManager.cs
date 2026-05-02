@@ -71,13 +71,16 @@ namespace EvolutionLaws.Core
             {
                 string markToUnlock = null;
 
-                if (affix == "Thick_Fur" || affix == "Affix_FrostFur" || affix == "FrostFur" || affix == "厚实的皮毛")
+                var affixDef = EvolutionLaws.Config.AffixManager.GetAffix(affix);
+
+                if (affixDef != null && !string.IsNullOrEmpty(affixDef.CorrespondingMarkID))
                 {
-                    markToUnlock = "微弱抗寒印记";
+                    markToUnlock = affixDef.CorrespondingMarkID;
                 }
                 else
                 {
-                    markToUnlock = $"微弱{affix}印记";
+                    // 如果在此词缀上没有配置对应的印记，直接跳过，不产出印记
+                    continue;
                 }
 
                 if (!string.IsNullOrEmpty(markToUnlock))
@@ -88,6 +91,7 @@ namespace EvolutionLaws.Core
                         uiDetails += $"<color=#00FF00>萃取先祖印记: [{markToUnlock}]</color>\n";
                         hasNewMarks = true;
                     }
+                    // 自动穿上新获得的印记
                     if (!MetaDataManager.Current.EquippedMarks.Contains(markToUnlock))
                     {
                         MetaDataManager.Current.EquippedMarks.Add(markToUnlock);

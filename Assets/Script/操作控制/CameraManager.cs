@@ -179,8 +179,14 @@ namespace EvolutionLaws.Core
 
             if (Mathf.Abs(scrollDelta) > 0.01f)
             {
+                //边界拦截
+                Vector3 mousePos = Input.mousePosition;
+                if (mousePos.x < 0 || mousePos.y < 0 || mousePos.x > Screen.width || mousePos.y > Screen.height)
+                {
+                    return; // 鼠标在游戏窗口外，不执行向鼠标位置缩放的逻辑
+                }
                 // ──────────────────────────────────
-                // 关键:缩放前获取鼠标世界坐标
+                // 缩放前获取鼠标世界坐标
                 // ──────────────────────────────────
                 Vector3 mouseWorldPosBefore = _camera.ScreenToWorldPoint(Input.mousePosition);
 

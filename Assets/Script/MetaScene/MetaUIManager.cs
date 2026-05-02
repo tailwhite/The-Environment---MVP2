@@ -52,25 +52,19 @@ namespace EvolutionLaws.UI
 
         private void Start()
         {
-            // 0. 读取 Resources/MetaConfig.json 并初始化局外数据字典
-            TextAsset jsonFile = Resources.Load<TextAsset>("MetaConfig");
-            if (jsonFile != null)
-            {
-                MetaConfigManager.Initialize(jsonFile.text);
-            }
-            else
-            {
-                Debug.LogError("找不到 MetaConfig.json 文件！请确保它在 Resources 文件夹中。");
-            }
+            // 0. 重构：直接调用初始化即可，它会自动去加载 MainMetaDatabase SO
+            MetaConfigManager.Initialize();
+
             // 1. 进入大厅第一件事：读取最新存档（比如刚死出来，需要刷新点数）
             MetaDataManager.Load();
 
             if (PotentialsDropdown != null)
-                PotentialsDropdown.onValueChanged.AddListener(OnPotentialSelectionChanged);// 你需要实现这个方法来处理潜能选择的变化
+                PotentialsDropdown.onValueChanged.AddListener(OnPotentialSelectionChanged);
 
             if (MarksDropdown != null)
                 MarksDropdown.onValueChanged.AddListener(OnMarkSelectionChanged);
-            //初始化分配槽位的显示
+
+            // 初始化分配槽位的显示
             InitDeploySlots();
             // 2. 刷新界面显示
             RefreshUI();
@@ -292,6 +286,13 @@ namespace EvolutionLaws.UI
         /// </summary>
         public void OnStartGameClicked()
         {
+            int totalAssigned = GetTotalAssignedPopulation();
+            if (totalAssigned <= 0)
+            {
+                Debug.LogWarning("[MetaUI] 没有任何出战生物！请先分配物种数量！");
+                // 如果你有飘字系统，可以在这里提示玩家
+                return;
+            }
             Debug.Log("[MetaUI] 开启新纪元，潜能已装载，跳转至 SimulationScene...");
 
             // 确保出战配置已存入本地

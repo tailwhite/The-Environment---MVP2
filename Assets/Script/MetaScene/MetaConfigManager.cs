@@ -3,44 +3,32 @@ using UnityEngine;
 
 namespace EvolutionLaws.Meta
 {
-    // 定义单个局外物品（潜能/印记）在 JSON 中的样子
-    [System.Serializable]
-    public class MetaItemConfig
-    {
-        public string ID;
-        public string NameCN;
-        public string DescriptionCN;
-
-        //只有装备了这个潜能，局内才允许演化出以下这些词缀ID
-        public List<string> UnlockableAffixes;
-    }
-
-    // 包装类，用于读取 JSON 数组
-    [System.Serializable]
-    public class MetaConfigDatabase
-    {
-        public List<MetaItemConfig> Potentials;
-        public List<MetaItemConfig> Marks;
-    }
-
     public static class MetaConfigManager
     {
         private static Dictionary<string, MetaItemConfig> _potentialsDict = new Dictionary<string, MetaItemConfig>();
         private static Dictionary<string, MetaItemConfig> _marksDict = new Dictionary<string, MetaItemConfig>();
+        private static bool _isInitialized = false;
 
-        public static void Initialize(string jsonContent)
+        public static void Initialize()
         {
+            if (_isInitialized) return;
+
             _potentialsDict.Clear();
             _marksDict.Clear();
 
-            var db = JsonUtility.FromJson<MetaConfigDatabase>(jsonContent);
-            if (db != null)
-            {
-                if (db.Potentials != null)
-                    foreach (var p in db.Potentials) _potentialsDict[p.ID] = p;
+            // 从资源文件夹加载刚才生成并烘焙好的 SO
+            MetaDatabaseSO dbSO = Resources.Load<MetaDatabaseSO>("MainMetaDatabase");
 
-                if (db.Marks != null)
-                    foreach (var m in db.Marks) _marksDict[m.ID] = m;
+            if (dbSO != null)
+            {
+                foreach (var p in dbSO.Potentials) _potentialsDict[p.ID] = p;
+                foreach (var m in dbSO.Marks) _marksDict[m.ID] = m;
+                _isInitialized = true;
+                Debug.Log($"[MetaConfigManager] 局外配置初始化完毕。潜能:{_potentialsDict.Count}，印记:{_marksDict.Count}");
+            }
+            else
+            {
+                Debug.LogError("❌ [MetaConfigManager] 找不到名为 'MainMetaDatabase' 的配置 SO！");
             }
         }
 

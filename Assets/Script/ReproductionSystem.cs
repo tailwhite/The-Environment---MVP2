@@ -281,7 +281,7 @@ namespace EvolutionLaws.Core
             float nutrientsPerBaby = totalDonatedNutrients / offspringCount;
             mother.Nutrients -= totalDonatedNutrients;
 
-            Debug.Log($"[ReproductionSystem]  {mother.SpeciesID} 产仔 {offspringCount} 只 | 消耗母体总营养: {totalDonatedNutrients:F1}");
+            //Debug.Log($"[ReproductionSystem]  {mother.SpeciesID} 产仔 {offspringCount} 只 | 消耗母体总营养: {totalDonatedNutrients:F1}");
 
             // 生成每只后代
             for (int i = 0; i < offspringCount; i++)

@@ -15,6 +15,10 @@ namespace EvolutionLaws.UI
         private void Awake()
         {
             Instance = this;
+            if (PanelRoot != null)
+            {
+                PanelRoot.SetActive(false);
+            }
         }
 
         // 外部调用展示面板

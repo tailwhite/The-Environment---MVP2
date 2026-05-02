@@ -19,8 +19,8 @@ namespace EvolutionLaws.Core
         // MVP测试用：时间较短方便观察
         private float _forebodingStartTime = 20f; // 生成局部寒流 (测试用)
 
-        private float _outbreakStartTime = 500f;   // 全球冰河期
-        private float _aftermathStartTime = 1000f;  // 结束灾难
+        private float _outbreakStartTime = 400f;   // 全球冰河期
+        private float _aftermathStartTime = 800f;  // 结束灾难
 
         private Vector2Int _anomalyCenter;
         private float _anomalyRadius = 15f;
@@ -54,6 +54,9 @@ namespace EvolutionLaws.Core
             CurrentState = CataclysmState.Foreboding;
             Debug.LogWarning("<b>[天灾导演] ⚠️ 冰河前兆：地图右上角气温开始骤降！</b>");
 
+            // UI 通知
+            EvolutionLaws.UI.NotificationUIManager.Instance?.AddLogMessage("【预警】冰河前兆：局部区域气温开始骤降！", new Color(1f, 0.6f, 0f));
+
             // 选取右上角作为试炼场
             _anomalyCenter = new Vector2Int(Mathf.RoundToInt(environment.Width * 0.8f), Mathf.RoundToInt(environment.Height * 0.8f));
 
@@ -77,6 +80,9 @@ namespace EvolutionLaws.Core
             CurrentState = CataclysmState.Outbreak;
             Debug.LogWarning("<b>[天灾导演] ❄️ 灾难爆发：全球进入极寒冰河期 (-20°C)！</b>");
             environment.Global_Temperature = -20f;//温度降低20度
+            // UI 中央拉大横幅警告 + 侧边记录
+            EvolutionLaws.UI.NotificationUIManager.Instance?.ShowCenterAlert("极寒世代降临", "环境气温骤降，适者生存！", Color.cyan);
+            EvolutionLaws.UI.NotificationUIManager.Instance?.AddLogMessage("【警告】极寒世代爆发，全球进入冰河期 (-20°C)！", Color.cyan);
         }
 
         private void TriggerAftermath(EnvironmentData environment)
@@ -86,6 +92,9 @@ namespace EvolutionLaws.Core
             environment.Global_Temperature = 20f;
 
             foreach (var tile in environment.Grid) tile.Temperature_Offset = 0f;
+            // UI 宣告危机解除
+            EvolutionLaws.UI.NotificationUIManager.Instance?.ShowCenterAlert("冰雪消融", "气温开始回暖，幸存者迎来了新生。", Color.green);
+            EvolutionLaws.UI.NotificationUIManager.Instance?.AddLogMessage("【复苏】天灾退潮，全球气温逐渐恢复常态。", Color.green);
         }
 
         private void TriggerMVPChoiceEvent()

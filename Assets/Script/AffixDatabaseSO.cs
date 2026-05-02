@@ -10,11 +10,41 @@ using UnityEngine;
 
 namespace EvolutionLaws.Data
 {
+    [System.Serializable]
+    public class AffixJsonWrapper
+    {
+        public List<AffixDefinition> Affixes = new List<AffixDefinition>();
+    }
+
     [CreateAssetMenu(fileName = "New_AffixDatabase", menuName = "Evolution Laws/Affix Database")]
     public class AffixDatabaseSO : ScriptableObject
     {
+        [Header("数据源 (在下方挂载你的 JSON 文件)")]
+        public TextAsset JsonSource;
+
         [Header("全局词缀配置表")]
         public List<AffixDefinition> Affixes = new List<AffixDefinition>();
+
+        [ContextMenu("🔽 一键从 JSON 读取并覆盖列表 (Import from JSON)")]
+        public void ImportFromJson()
+        {
+            if (JsonSource == null)
+            {
+                Debug.LogError("❌ 请先拖拽 JSON 文件到 JsonSource 槽位中！");
+                return;
+            }
+
+            var db = JsonUtility.FromJson<AffixJsonWrapper>(JsonSource.text);
+            if (db != null && db.Affixes != null)
+            {
+                Affixes = db.Affixes;
+                Debug.Log($"[AffixDatabaseSO] 导入成功！共载入 {Affixes.Count} 个词缀。");
+            }
+            else
+            {
+                Debug.LogError("❌ 词缀导入失败！请检查 JSON 格式是否有误。");
+            }
+        }
     }
 
     // 词缀的静态定义 (规则书)
@@ -32,23 +62,26 @@ namespace EvolutionLaws.Data
         public List<StatModifier> Modifiers = new List<StatModifier>();
 
         // 【行为层面】：赋予生物的特殊能力标签！(如 "Photosynthesis", "NightVision")
-        public List<string> GrantedTags = new List<string>();
+        public List<string> GrantedTags = new List<string>();//到时候在生物的行为决策系统里可以根据这些标签来触发特殊行为
 
         // [维度7] 代价与限制
         public float Upkeep_Cost = 0f; // 代谢税 (每秒额外耗能)
 
         public List<string> Incompatible_IDs = new List<string>(); // 互斥词缀
 
+        [Tooltip("结算时，若生物携带该词缀，将解锁对应的局外印记 (填入印记的ID，若为空则不产出印记)")]
+        public string CorrespondingMarkID;// 结算奖励：对应的局外印记ID (如果有的话)
+
         // 条件规则 (例如: 在水中速度减半)
-        public List<ContextRule> ContextRules = new List<ContextRule>();
+        public List<ContextRule> ContextRules = new List<ContextRule>();//到时候在生物的属性计算系统里可以根据这些规则来动态调整属性值
     }
 
     [System.Serializable]
     public struct ContextRule// 条件修正
     {
-        public string ContextTag; //规则标签  e.g. "In_Water", "In_Darkness"
-        public string StatAffected;// 受影响的属性  e.g. "Speed", "Vision_Range"
-        public float ModifierValue;// 修正值  e.g. 0.5 (表示减半)
+        public string ContextTag; //有什么特殊规则标签，到时候在其他系统里根据这个标签来判断是否触发这个规则
+        public string StatAffected;// 受影响的是什么属性  e.g. "Speed", "Vision_Range"
+        public float ModifierValue;// 属性的修正值  e.g. -0.5f (速度减半), +10f (视野增加10)
     }
 
     // 潜力触发映射 (表观遗传规则)

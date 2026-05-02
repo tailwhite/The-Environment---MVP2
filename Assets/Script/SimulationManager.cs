@@ -118,6 +118,9 @@ namespace EvolutionLaws.Core
         //蓝图字典 (用于繁殖系统快速查找)
         private Dictionary<string, SpeciesBlueprint> _blueprintMap = new Dictionary<string, SpeciesBlueprint>();
 
+        //灭绝物种记录 (供灭绝系统使用)
+        private HashSet<string> _extinctSpecies = new HashSet<string>();
+
         // ==========================================
         // 初始化
         // ==========================================
@@ -136,9 +139,11 @@ namespace EvolutionLaws.Core
         private void Start()
         {
             MetaDataManager.Load();
+            MetaConfigManager.Initialize();
             Debug.Log("[SimulationManager] ========== 开始初始化序列 ==========");
 
             AllCreatures.Clear();
+            _extinctSpecies.Clear();
             _creatureViews.Clear();
             AffixManager.Initialize();
             // ──────────────────────────────────
@@ -235,7 +240,7 @@ namespace EvolutionLaws.Core
                 Debug.LogWarning("[SimulationManager]  SpeciesConfigs 列表为空,跳过生物生成");
                 return;
             }
-            if (MetaDataManager.Current != null && MetaDataManager.Current.DeployedSpecies != null)
+            if (MetaDataManager.Current != null && MetaDataManager.Current.DeployedSpecies != null && MetaDataManager.Current.DeployedSpecies.Count > 0)
             {
                 foreach (var config in SpeciesConfigs)
                 {
@@ -252,6 +257,11 @@ namespace EvolutionLaws.Core
                         config.Enabled = false;
                     }
                 }
+            }
+            else
+            {
+                // 兜底方案：如果是直接从 SimulationScene 运行的，使用配置表在 Inspector 里配的默认数量，避免数量全变成 0
+                Debug.Log("[Simulation] 未获取到局外部署数据，使用场景默认配置启动！");
             }
             int totalSpawned = 0;
 
@@ -541,8 +551,13 @@ namespace EvolutionLaws.Core
         private void CleanupDeadCreatures()
         {
             var deadList = AllCreatures.FindAll(c => c.IsDead);
+            // 1. 记下这一帧所有死掉的生物对应的物种ID
+            HashSet<string> deadSpeciesThisFrame = new HashSet<string>();
+
             foreach (var dead in deadList)
             {
+                deadSpeciesThisFrame.Add(dead.SpeciesID);
+
                 _godPowerSystem.AddEnergy(10f, "灵魂消散");
                 // ━━━ 将案发现场移交法医系统录入导出表 ━━━
                 _analyticsSystem.RecordDeath(dead);
@@ -575,6 +590,23 @@ namespace EvolutionLaws.Core
             }
             // 彻底移除尸体数据
             AllCreatures.RemoveAll(c => c.IsDead);
+
+            // 2.在移除尸体后，反向盘查刚才死人的物种是否“全军覆没”了
+            foreach (var sp in deadSpeciesThisFrame)
+            {
+                bool stillAlive = AllCreatures.Exists(c => c.SpeciesID == sp);
+                if (!stillAlive && !_extinctSpecies.Contains(sp))
+                {
+                    _extinctSpecies.Add(sp);
+                    Debug.LogWarning($"【淘汰】物种 {sp} 绝种了！");
+
+                    // UI 播报惨烈灭绝 (加上判空保护)
+                    if (EvolutionLaws.UI.NotificationUIManager.Instance != null)
+                    {
+                        EvolutionLaws.UI.NotificationUIManager.Instance.AddLogMessage($"【淘汰】物种 <color=red>{sp}</color> 无法适应残酷环境，已全军覆没。", Color.gray);
+                    }
+                }
+            }
         }
 
         private Vector2 FindWalkablePosition()// 在地图上找到一个可通行的位置
