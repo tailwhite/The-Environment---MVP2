@@ -20,7 +20,11 @@ namespace EvolutionLaws.Core
             foreach (var creature in creatures)
             {
                 if (creature.IsDead) continue;
-
+                // 处理消息倒计时
+                if (creature.EvoMsgTimer > 0)
+                {
+                    creature.EvoMsgTimer -= deltaTime;
+                }
                 AccumulatePotentials(creature, environment, deltaTime);
             }
         }
@@ -117,9 +121,13 @@ namespace EvolutionLaws.Core
 
                 creature.RecalculateStats(AffixManager.GetDatabase());
                 _godPowerSystem.AddEnergy(100f, $"基因飞跃：{creature.SpeciesID} 觉醒了 {affixID}！");
+                // 1. 【性能最优解】将消息直接注入给生物本尊，由它的已实例化的UI读取！
+                creature.EvolutionMsg = $"进化:\n{affixID}!";
+                creature.EvoMsgTimer = 5.0f; // 滞留 5 秒
+
                 if (EvolutionLaws.UI.NotificationUIManager.Instance != null)
                 {
-                    EvolutionLaws.UI.NotificationUIManager.Instance.ShowFloatingText(creature.Position, $"进化:{affixID}!", Color.red);
+                    //EvolutionLaws.UI.NotificationUIManager.Instance.ShowFloatingText(creature.Position, $"进化:{affixID}!", Color.red);
                     // 【追踪优化1】加上具体坐标，方便你手动把镜头移过去
                     EvolutionLaws.UI.NotificationUIManager.Instance.AddLogMessage($"【进化】{creature.SpeciesID} 绝境中觉醒: {affixID} 于坐标({creature.Position.x:F0}, {creature.Position.y:F0})", Color.yellow);
                 }

@@ -31,6 +31,13 @@ namespace EvolutionLaws.View
         [Tooltip("物种ID文本(可选)")]
         public TextMeshProUGUI SpeciesText;
 
+        [Header("Evolution Message")]
+        [Tooltip("在Prefab中预留的进化文字组件 (默认隐藏)")]
+        public TextMeshPro EvolutionText;
+
+        public float FloatSpeed = 1.0f; // 飘字上升速度
+        private Vector3 _evoTextOriginPos; // 记录原始化锚点
+
         // ==========================================
         // 数据引用
         // ==========================================
@@ -65,6 +72,12 @@ namespace EvolutionLaws.View
         /// </summary>
         public void Initialize(CreatureData data)
         {
+            // 记住预制体内文本的初始相对坐标
+            if (EvolutionText != null)
+            {
+                _evoTextOriginPos = EvolutionText.transform.localPosition;
+                EvolutionText.gameObject.SetActive(false);
+            }
             _data = data;
         }
 
@@ -105,7 +118,33 @@ namespace EvolutionLaws.View
                 scale.x = energyPercent;
                 EnergyBarFillTransform.localScale = scale;
             }
+            // 5. 零开销的进化消息复用
+            if (EvolutionText != null)
+            {
+                if (_data.EvoMsgTimer > 0)
+                {
+                    if (!EvolutionText.gameObject.activeSelf)
+                    {
+                        // 刚刚触发进化时：将其归位并显示
+                        EvolutionText.gameObject.SetActive(true);
+                        EvolutionText.transform.localPosition = _evoTextOriginPos;
+                        EvolutionText.text = _data.EvolutionMsg;
+                    }
 
+                    // 向上飘动 (操作相对坐标)
+                    EvolutionText.transform.localPosition += Vector3.up * FloatSpeed * Time.deltaTime;
+
+                    // 最后一秒进行淡出表现
+                    Color c = EvolutionText.color;
+                    c.a = Mathf.Clamp01(_data.EvoMsgTimer);
+                    EvolutionText.color = c;
+                }
+                else if (EvolutionText.gameObject.activeSelf)
+                {
+                    // 时间到了，回收隐藏
+                    EvolutionText.gameObject.SetActive(false);
+                }
+            }
             // 4. 隐藏死亡生物的UI
             if (_data.IsDead)
             {

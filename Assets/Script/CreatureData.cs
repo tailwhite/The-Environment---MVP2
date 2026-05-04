@@ -259,6 +259,13 @@ namespace EvolutionLaws.Data
         [Tooltip("该生物一胎能生几个 (基因决定)")]
         public MinMaxRange Offspring_Count = new MinMaxRange { Min = 1, Max = 3 };
 
+        // ==========================================
+        // 【新增临时状态】 用于数据驱动 UI 表现
+        // ==========================================
+        [HideInInspector] public string EvolutionMsg = "";
+
+        [HideInInspector] public float EvoMsgTimer = 0f;
+
         // =========================================
         //【参与遗传的基础数值】
         //==========================================
