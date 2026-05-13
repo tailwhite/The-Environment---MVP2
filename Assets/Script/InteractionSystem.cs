@@ -162,6 +162,10 @@ namespace EvolutionLaws.Core
             {
                 nutrientMultiplier = 4.0f; // 吃一口肉抵得上吃四口草，符合真实生态链的能量富集逻辑
             }
+            else if (bestResource == ResourceType.Mineral)
+            {
+                nutrientMultiplier = 2.0f; // 吃一口矿顶两口草
+            }
 
             // 增加生物营养
             float gainedNutrients = actualAmount * bestEfficiency * nutrientMultiplier;

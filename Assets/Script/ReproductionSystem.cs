@@ -25,8 +25,10 @@ namespace EvolutionLaws.Core
         public float Reproduction_Energy_Cost = 50f;      // 繁殖消耗的能量
         public float Offspring_Spawn_Range = 2f;          // 后代出生距离
 
-        // 【新增】防卡死全局最大种群数保险阀
+        // 防卡死全局最大种群数保险阀
         public int Global_Population_Cap = 300;           // 全局生物总数上限
+
+        public int Species_Population_Cap = 150;          // 单一物种总数上限 (防止某类生物垄断生育权
 
         // ==========================================
         // 运行时状态
@@ -47,6 +49,13 @@ namespace EvolutionLaws.Core
             _simulationTime += deltaTime;
             _pendingOffspring.Clear(); // 清空上一帧的后代列表
 
+            Dictionary<string, int> speciesPop = new Dictionary<string, int>();
+            foreach (var c in creatures)
+            {
+                if (c.IsDead) continue;
+                if (!speciesPop.ContainsKey(c.SpeciesID)) speciesPop[c.SpeciesID] = 0;
+                speciesPop[c.SpeciesID]++;
+            }
             foreach (var creature in creatures)
             {
                 if (creature.IsDead || creature.IsUnconscious) continue;
@@ -54,6 +63,9 @@ namespace EvolutionLaws.Core
                 // 【防卡死监测】如果种群数即将触及天花板，大自然将剥夺交配权
                 if (creatures.Count + _pendingOffspring.Count >= Global_Population_Cap)
                     break;
+                // 【反垄断监测】如果这个物种的数量已经达到了该物种的独立上限，不准再生了，把生育机会留给别人
+                if (speciesPop.ContainsKey(creature.SpeciesID) && speciesPop[creature.SpeciesID] >= Species_Population_Cap)
+                    continue;
                 // ──────────────────────────────────
                 // 阶段 1: 检查是否成熟
                 // ──────────────────────────────────
@@ -88,19 +100,24 @@ namespace EvolutionLaws.Core
                 if (!creature.IsPregnant) continue;
 
                 float pregnancyTime = _simulationTime - creature.Pregnancy_Start_Time;
-                if (pregnancyTime >= creature.Pregnancy_Duration)
+                if (pregnancyTime >= creature.Pregnancy_Duration)//如果怀孕时间到达或超过预定的妊娠期，尝试生育
                 {
-                    // 【防卡死监测】生育前的最后一道坎
-                    if (creatures.Count + _pendingOffspring.Count < Global_Population_Cap)
+                    // 获取当前这只生物的物种人数
+                    int currentSpeciesCount = speciesPop.ContainsKey(creature.SpeciesID) ? speciesPop[creature.SpeciesID] : 0;
+
+                    // 【防卡死监测】生育前的最后一道坎 (全局容量 + 种族独立容量双重限制)
+                    if (creatures.Count + _pendingOffspring.Count < Global_Population_Cap &&
+                        currentSpeciesCount < Species_Population_Cap)
                     {
                         GiveBirth(creature, creatures, blueprintMap, _simulationTime);
+                        speciesPop[creature.SpeciesID]++; // 生完登记在册，防止同一种族同一帧集体疯狂产仔
                     }
                     else
                     {
                         // 强制流产/放弃生育，恢复普通状态
                         creature.IsPregnant = false;
                         creature.Mate_UID = null;
-                        Debug.LogWarning($"[ReproductionSystem] 全局种群到达极限 ({Global_Population_Cap})，生物被强制终止产仔。");
+                        Debug.LogWarning($"[ReproductionSystem] 容量到达极限或种族人口超标，生物被强制终止产仔。");
                     }
                 }
             }

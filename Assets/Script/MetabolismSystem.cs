@@ -163,7 +163,7 @@ namespace EvolutionLaws.Core
                     }
                     if (creature.IsDead && creature.Stage == LifeStage.Larva)
                     {
-                        Debug.LogWarning($"[验尸] 幼崽夭折! 死因:{creature.CauseOfDeath} | 存活时间:{(globalTime - creature.BirthTimestamp):F1}s | 临终状态: 昏迷={creature.IsUnconscious}, 体力={creature.Energy:F1}, 营养={creature.Nutrients:F1}");
+                        Debug.LogWarning($"[验尸] 幼崽夭折! 生物：{creature.SpeciesID}|死因:{creature.CauseOfDeath} | 存活时间:{(globalTime - creature.BirthTimestamp):F1}s | 临终状态: 昏迷={creature.IsUnconscious}, 体力={creature.Energy:F1}, 营养={creature.Nutrients:F1}");
                     }
                 }
 

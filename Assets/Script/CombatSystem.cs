@@ -104,6 +104,11 @@ namespace EvolutionLaws.Core
             // ──────────────────────────────────
             float finalDamage = baseDamage * sizeFactor * Global_Damage_Multiplier;
 
+            if (attacker.CurrentBehavior == BehaviorState.Hunting && target.CurrentBehavior == BehaviorState.Fleeing)
+            {
+                finalDamage *= 3.0f;      // 咬断后颈，造成 3 倍真实撕裂伤害！
+                target.Energy *= 0.3f;    // 猎物遭到重创，瞬间流失 70% 的奔跑体力 (踉跄致残，下一帧就会因为失去体力被按倒)
+            }
             // ──────────────────────────────────
             // 4. 应用伤害到结构值
             // ──────────────────────────────────

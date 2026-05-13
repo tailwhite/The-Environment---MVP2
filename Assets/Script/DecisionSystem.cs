@@ -1,7 +1,8 @@
-using System.Collections.Generic;
-using UnityEngine;
 using EvolutionLaws.Data;
 using EvolutionLaws.Utilities;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.SocialPlatforms.Impl;
 
 namespace EvolutionLaws.Core
 {
@@ -475,9 +476,15 @@ namespace EvolutionLaws.Core
             foreach (var target in creature.PerceivedTargets)
             {
                 if (target.Type != TargetType.Prey) continue;
-
                 // 评分 = 距离 (距离越近越好)
                 float score = target.Distance;
+
+                // 【AI 强化：专一机制】如果这是我上一秒正在追的目标，给它 -20 米的极大距离优惠权重。
+                // 这能保证它一旦锁定某只猎物，就会死死咬住绝不轻易换人，大幅提高追击成功率！
+                if (target.UID == creature.TargetCreatureUID)
+                {
+                    score -= 20f;
+                }
 
                 if (score < bestScore)
                 {

@@ -12,7 +12,7 @@ namespace EvolutionLaws.Core
         private HashSet<string> _discoveredAffixesThisRun = new HashSet<string>();
 
         // 设定单局最大时间 (例如天灾结束是 1000 秒，或者你需要的任何时长)
-        public float MaxSimulationTime = 3000f;
+        public float MaxSimulationTime = 2000f;
 
         // 在死亡瞬间被 SimulationManager 调用
         public void RecordDeath(CreatureData dead)

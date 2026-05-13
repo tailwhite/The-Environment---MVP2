@@ -183,12 +183,7 @@ namespace EvolutionLaws.UI
             _lastUpdateTime = Time.time;
 
             // ──────────────────────────────────
-            // 1. 更新位置 (跟随鼠标)
-            // ──────────────────────────────────
-            UpdatePosition();
-
-            // ──────────────────────────────────
-            // 2. 检测鼠标下的地块
+            // 1. 检测鼠标下的地块
             // ──────────────────────────────────
             bool tileFound = TryGetTileUnderMouse(out TileData tile, out int tileX, out int tileY);
             if (ShowDebugLogs)
@@ -203,9 +198,13 @@ namespace EvolutionLaws.UI
                     Debug.Log("[TileTooltip]  鼠标移出地图");
                 }
             }
+
+            // ──────────────────────────────────
+            // 2. 依次执行：显示 -> 改字 -> 强刷画布 -> 移动位置
+            // ──────────────────────────────────
             if (tileFound)
             {
-                // 显示面板
+                // 先显示面板
                 ShowPanel();
 
                 // 只有格子变化时才刷新文本 (优化性能)
@@ -215,6 +214,13 @@ namespace EvolutionLaws.UI
                     _lastTileX = tileX;
                     _lastTileY = tileY;
                 }
+
+                // 【关键修复】：在显示UI并修改文本后，强制通知 Unity 重构排版！
+                // 防止稍后的 UpdatePosition() 获取 RectTransform 宽/高时触发底层报错。
+                Canvas.ForceUpdateCanvases();
+
+                // 此时画布长宽已确认，可以安全地进行跟随和屏幕边缘约束运算
+                UpdatePosition();
             }
             else
             {

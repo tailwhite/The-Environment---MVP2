@@ -80,6 +80,9 @@ namespace EvolutionLaws.Core
         [Tooltip("固定时间步长 (秒)，建议 0.05 - 0.1")]
         public float FixedDeltaTime = 0.1f;
 
+        [Tooltip("是否启用天灾导演系统 (关闭以测试纯粹的自然生态)")]
+        public bool EnableCataclysm = true;
+
         // 👇 全局仿真计时器
         public float GlobalTime { get; private set; } = 0f;
 
@@ -441,7 +444,11 @@ namespace EvolutionLaws.Core
         {
             GlobalTime += deltaTime;
             //天灾导演系统 (根据时间轴触发环境事件)
-            _cataclysmDirector.Tick(Environment, GlobalTime);
+            //天灾导演系统 (根据时间轴触发环境事件)
+            if (EnableCataclysm)
+            {
+                _cataclysmDirector.Tick(Environment, GlobalTime);
+            }
             // ───────────────────────────────
             // 阶段 1: 环境系统更新
             // ────────────────────────────────────
@@ -550,7 +557,7 @@ namespace EvolutionLaws.Core
         /// </summary>
         private void CleanupDeadCreatures()
         {
-            var deadList = AllCreatures.FindAll(c => c.IsDead);
+            var deadList = AllCreatures.FindAll(c => c.IsDead);//找到所有死掉的生物，性能可能会有点问题，后续可以优化为在新陈代谢系统里直接记录死掉的生物列表，避免每帧都遍历一次所有生物来找死掉的
             // 1. 记下这一帧所有死掉的生物对应的物种ID
             HashSet<string> deadSpeciesThisFrame = new HashSet<string>();
 

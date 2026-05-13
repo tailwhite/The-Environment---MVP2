@@ -32,9 +32,9 @@ namespace EvolutionLaws.Core
         public float Path_Recalculate_Interval = 1.5f; // 猎物移动时重新寻路的间隔
 
         // 抗卡顿配额，单帧最多只允许算出 3 条复杂寻路
-        public int Max_AStar_Calculations_Per_Frame = 3;
+        public int Max_AStar_Calculations_Per_Frame = 10;
 
-        private int _astarCalculationsThisFrame = 0;
+        private int _astarCalculationsThisFrame = 0;// 本帧已经执行的 A* 寻路数量
 
         // 降频排序机制
         public float Sort_Interval = 0.3f; // 每 0.3 秒才重新计算一次优先级
@@ -155,8 +155,8 @@ namespace EvolutionLaws.Core
                     {
                         distToPrey = Vector2.Distance(creature.Position, creature.TargetPosition.Value);
                     }
-                    // 捕猎：基础 100，越饿越急，距离越近越急着抢算力做微操 A* 扑咬！
-                    return 100f + hungerPercent - distToPrey;
+                    // 【AI升级：猎手本能】基础分提升至 150 与逃命同级！距离越近越急着抢算力做微操！
+                    return 150f + hungerPercent - distToPrey;
 
                 case BehaviorState.Foraging:
                     // 觅食：基础 50，快饿死了就急于寻路
@@ -193,6 +193,33 @@ namespace EvolutionLaws.Core
         }
 
         /// <summary>
+        /// 获取生物涉足该地块时的真实移动阻力 (支持两栖词缀降阻)
+        /// </summary>
+        private float GetActualTileCost(CreatureData creature, float originalCost)
+        {
+            // 水域的基础 Cost 是 100f，MaxValue 是地图边界的死墙
+            if (originalCost >= 100f && originalCost < float.MaxValue)
+            {
+                // 【核心词缀机制】：如果生物拥有 "Amphibious" 两栖词缀，使水域阻力下降 20 倍 (100 -> 5)
+                // 5 的阻力小于硬性不可通行阈值 10f，从而让该生物可以将河流视为常规通道！
+                if (creature.ActiveAffixes.Contains("Amphibious"))
+                {
+                    return originalCost / 20.0f;
+                }
+            }
+            return originalCost;
+        }
+
+        private bool IsWalkableForCreature(CreatureData creature, EnvironmentData envData, int x, int y)
+        {
+            var tile = envData.GetTile(x, y);
+            if (tile == null) return false;
+
+            float actualCost = GetActualTileCost(creature, tile.Movement_Cost);
+            return actualCost < 10f; // 小于10表示可通过
+        }
+
+        /// <summary>
         /// 判定是否抵近目标，如果抵达则重置目标点
         /// </summary>
         private bool CheckAndHandleTargetArrival(CreatureData creature, Vector2 targetPos)
@@ -221,11 +248,9 @@ namespace EvolutionLaws.Core
         /// </summary>
         private float GetSpeedMultiplier(BehaviorState state)
         {
-            // 生存本能带来的额外爆发速度：狩猎和逃跑跑得更快
-            if (state == BehaviorState.Hunting || state == BehaviorState.Fleeing)
-            {
-                return 1.5f;
-            }
+            // 生存本能带来的额外爆发速度：捕食者必须跑得比猎物稍快，否则会出现永动机式追逐
+            if (state == BehaviorState.Hunting) return 1.8f; // 捕食者冲刺倍率
+            if (state == BehaviorState.Fleeing) return 1.5f; // 猎物逃跑倍率
             return 1.0f;
         }
 
@@ -252,6 +277,12 @@ namespace EvolutionLaws.Core
             // 2. 如果需要新路径，先检查配额再计算
             if (needsNewPath)
             {
+                // 【生态补丁：VIP 算力通道】
+                // 闲逛和觅食使用正常的硬上限 (Max_AStar_Calculations_Per_Frame)
+                // 处于生与死边缘的“狩猎”与“逃跑”，允许翻倍透支算力额度！(确保动作流畅)
+                bool isEmergency = creature.CurrentBehavior == BehaviorState.Hunting || creature.CurrentBehavior == BehaviorState.Fleeing;
+                int currentQuota = isEmergency ? Max_AStar_Calculations_Per_Frame * 2 : Max_AStar_Calculations_Per_Frame;
+
                 // 【Time-Slicing 拦截网】：CPU 保护机制
                 if (_astarCalculationsThisFrame >= Max_AStar_Calculations_Per_Frame)
                 {
@@ -260,8 +291,12 @@ namespace EvolutionLaws.Core
                 }
 
                 _astarCalculationsThisFrame++; // 开销+1
-                // 执行 A* 寻路
-                var newPath = SimpleAStar.FindPath(creature.Position, finalTarget, envData);
+
+                // 判断它会不会游泳
+                bool canSwim = creature.ActiveAffixes.Contains("Amphibious");
+
+                // 执行 A* 寻路，把词缀特征传进去
+                var newPath = SimpleAStar.FindPath(creature.Position, finalTarget, envData, canSwim);
                 if (newPath != null && newPath.Count > 0)
                 {
                     _activePaths[creature.UID] = newPath;
@@ -269,6 +304,12 @@ namespace EvolutionLaws.Core
                 }
                 else
                 {
+                    // 【AI 强化：知难而退】发现 A* 算出来根本过不去（目标在河对岸）
+                    // 直接清空决策，待在原地。下一帧 DecisionSystem 发现没目标了，就会去乖乖抓同岸的其他猎物。
+                    //creature.TargetCreatureUID = null;
+                    //creature.TargetPosition = null;
+                    //_activePaths.Remove(creature.UID);
+                    //return creature.Position;
                     return finalTarget;
                 }
             }
@@ -302,20 +343,34 @@ namespace EvolutionLaws.Core
             float stepDist = creature.Move_Speed * speedMultiplier * deltaTime;
             stepDist = Mathf.Min(stepDist, distanceToTarget); // 防抖，不要越过目标
 
-            Vector2 nextPos = creature.Position + dir * stepDist;
-
-            // 遇到路点精度导致的微小碰撞时，尝试侧行贴过去
-            if (!envManager.IsWalkable(Mathf.FloorToInt(nextPos.x), Mathf.FloorToInt(nextPos.y)))
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            // 【新增：量子隧穿效应修复 (CCD 连续碰撞检测)】
+            // 当步长较大时，分段(每0.4米)探路，防止50倍速下单帧跨越1格宽度的河流
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            float checkPlop = stepDist;
+            Vector2 rayPos = creature.Position;
+            while (checkPlop > 0)
             {
-                bool canMoveX = envManager.IsWalkable(Mathf.FloorToInt(nextPos.x), Mathf.FloorToInt(creature.Position.y));
-                bool canMoveY = envManager.IsWalkable(Mathf.FloorToInt(creature.Position.x), Mathf.FloorToInt(nextPos.y));
+                float segment = Mathf.Min(checkPlop, 0.4f); // 每次探出大半个身位
+                rayPos += dir * segment;
 
-                if (canMoveX) nextPos = new Vector2(nextPos.x, creature.Position.y);
-                else if (canMoveY) nextPos = new Vector2(creature.Position.x, nextPos.y);
-                else return creature.Position; // 死角，待在原地
+                if (!IsWalkableForCreature(creature, envManager.EnvironmentData, Mathf.FloorToInt(rayPos.x), Mathf.FloorToInt(rayPos.y)))
+                {
+                    Vector2 safePos = rayPos - dir * segment;
+
+                    bool canMoveX = IsWalkableForCreature(creature, envManager.EnvironmentData, Mathf.FloorToInt(safePos.x + dir.x * segment), Mathf.FloorToInt(creature.Position.y));
+                    bool canMoveY = IsWalkableForCreature(creature, envManager.EnvironmentData, Mathf.FloorToInt(creature.Position.x), Mathf.FloorToInt(safePos.y + dir.y * segment));
+
+                    if (canMoveX) return new Vector2(safePos.x + dir.x * segment, creature.Position.y);
+                    if (canMoveY) return new Vector2(creature.Position.x, safePos.y + dir.y * segment);
+
+                    return creature.Position;
+                }
+                checkPlop -= segment;
             }
 
-            return nextPos;
+            // 一路畅通无阻，直接返回最终目标点
+            return creature.Position + dir * stepDist;
         }
 
         /// <summary>
@@ -332,7 +387,8 @@ namespace EvolutionLaws.Core
 
             if (tile != null)
             {
-                baseCost *= tile.Movement_Cost; // 沼泽等困难地形惩罚
+                // 使用带有减免效果的函数获取真实成本
+                baseCost *= GetActualTileCost(creature, tile.Movement_Cost);
             }
 
             // 基础倍率修正: 体型与最终速度
@@ -344,6 +400,14 @@ namespace EvolutionLaws.Core
 
             // 最终体力消耗 = 单位里程造价 × 实际跑了几米
             float moveCost = baseCost * actualMoveDist;
+
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            // 【生态补丁：饱食散步】吃饱喝足闲逛时，进入“节能溜达”模式
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            if (creature.CurrentBehavior == BehaviorState.Idle && creature.Need_Hunger <= 20f)
+            {
+                moveCost *= 0.2f; // 饭后消食慢走，仅消耗 20% 的平时移动体力！
+            }
 
             if (creature.Energy < moveCost)
             {
@@ -385,7 +449,7 @@ namespace EvolutionLaws.Core
             if (creature.CurrentBehavior == BehaviorState.Idle)
             {
                 // 如果没有设定点，或者逛太久触发了重思CD
-                if (!creature.TargetPosition.HasValue || ShouldWander(creature.UID))
+                if (!creature.TargetPosition.HasValue || ShouldWander(creature))
                 {
                     creature.TargetPosition = DecideWanderTarget(creature, environment, envManager);
                 }
@@ -394,17 +458,25 @@ namespace EvolutionLaws.Core
             return creature.TargetPosition;
         }
 
-        private bool ShouldWander(string uid)
+        private bool ShouldWander(CreatureData creature)
         {
-            if (!_lastMoveTime.ContainsKey(uid))
+            if (!_lastMoveTime.ContainsKey(creature.UID))
             {
-                _lastMoveTime[uid] = _simulationTime;
+                _lastMoveTime[creature.UID] = _simulationTime;
                 return true;
             }
-            float timeSinceLastMove = _simulationTime - _lastMoveTime[uid];
-            if (timeSinceLastMove >= Wander_Interval)
+            float timeSinceLastMove = _simulationTime - _lastMoveTime[creature.UID];
+
+            // 【生态补丁：散步欲望】饿的时候多发呆少走动(省体力)；吃饱以后到处乱跑(扩充活动范围，提前绕过复杂地形)
+            float currentInterval = Wander_Interval;
+            if (creature.Need_Hunger <= 20f)
             {
-                _lastMoveTime[uid] = _simulationTime;
+                currentInterval *= 0.3f; // 彻底吃饱时，发呆思索时间缩短 70%，不停地走动探索
+            }
+
+            if (timeSinceLastMove >= currentInterval)
+            {
+                _lastMoveTime[creature.UID] = _simulationTime;
                 return true; // CD 好了，换个方向
             }
             return false;
@@ -418,14 +490,16 @@ namespace EvolutionLaws.Core
             int currentX = Mathf.FloorToInt(creature.Position.x);
             int currentY = Mathf.FloorToInt(creature.Position.y);
 
-            // 让它看远一点 (往外探索 1~4 格)，而不是永远只能摸一格
+            // 吃饱时看远一点(扩充到 8 格)，饿着或者平时只探索近处(4 格)
+            int wanderRadius = (creature.Need_Hunger <= 20f) ? 8 : 4;
             int maxTries = 5;
             for (int i = 0; i < maxTries; i++)
             {
-                int targetX = currentX + Random.Range(-4, 5);
-                int targetY = currentY + Random.Range(-4, 5);
+                int targetX = currentX + Random.Range(-wanderRadius, wanderRadius + 1);
+                int targetY = currentY + Random.Range(-wanderRadius, wanderRadius + 1);
 
-                if (envManager.IsWalkable(targetX, targetY))
+                // 让会潜水的动物也能向水里发起漫游
+                if (IsWalkableForCreature(creature, environment, targetX, targetY))
                 {
                     return new Vector2(targetX + 0.5f, targetY + 0.5f);
                 }
@@ -492,7 +566,7 @@ namespace EvolutionLaws.Core
                 return node;
             }
 
-            public static List<Vector2> FindPath(Vector2 startPos, Vector2 targetPos, EnvironmentData envData)
+            public static List<Vector2> FindPath(Vector2 startPos, Vector2 targetPos, EnvironmentData envData, bool canSwim = false)
             {//获取生物的当前位置和目标位置的格子坐标，返回从起点到目标的路径点列表（如果不可达则返回 null）
                 int startX = Mathf.FloorToInt(startPos.x); int startY = Mathf.FloorToInt(startPos.y);
                 int targetX = Mathf.FloorToInt(targetPos.x); int targetY = Mathf.FloorToInt(targetPos.y);
@@ -559,6 +633,13 @@ namespace EvolutionLaws.Core
                             if (_closedSet.Contains(neighborIndex)) continue; // 已探寻不再走
 
                             var tile = envData.GetTile(neighborX, neighborY);
+                            float tileCost = tile.Movement_Cost;
+
+                            // 【核心】：对带词缀的两栖类网开一面
+                            if (canSwim && tileCost >= 100f && tileCost < float.MaxValue)
+                            {
+                                tileCost /= 20.0f; // 在寻路网中将这片水域直接按 5 积分处理
+                            }
                             if (tile.Movement_Cost >= 10f) continue; // 核心：绝对不可通行（水、山区墙壁）跳过
 
                             // 代价核算（斜向走是根号2）
