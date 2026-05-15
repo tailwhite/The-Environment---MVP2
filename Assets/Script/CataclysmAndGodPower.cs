@@ -282,6 +282,7 @@ namespace EvolutionLaws.Core
                 // 加 500 点食物肉量 (模拟高热量，或者你可以写 Biomass_Plant)
                 tile.Biomass_Meat += 500f;
                 tile.Biomass_Plant += 500f;
+                tile.Biomass_Mineral += 500f;
                 Debug.Log($"<color=green>[神迹] 甘霖天降 ({x},{y})，食物暴增！</color>");
             }
         }

@@ -62,7 +62,7 @@ namespace EvolutionLaws.Core
             // 当它处于零度以下的试炼场挣扎时，疯狂累计抗寒基因（一秒给 5 点，大约20秒不死就能觉醒）
             if (actualTemp <= 0f)
             {
-                AddPotential(creature, "Thick_Fur", deltaTime * 5f);
+                AddPotential(creature, "Thick_Fur", deltaTime * 1f);
             }
             else if (creature.Lifetime_EnergySpent_Temp > 100f)
             {

@@ -43,7 +43,7 @@ namespace EvolutionLaws.Core
             BuildSpatialGrid(creatures);
 
             // 步骤 2：游标推进，决定本帧该哪一批生物“睁开眼睛”
-            _currentFrame = (_currentFrame + 1) % DistributionFrames;
+            _currentFrame = (_currentFrame + 1) % DistributionFrames;// 如果 DistributionFrames=5，则 _currentFrame 在0-4循环，平均每5帧更新一次同一批生物
 
             for (int i = 0; i < creatures.Count; i++)
             {
@@ -92,7 +92,7 @@ namespace EvolutionLaws.Core
                     Mathf.FloorToInt(c.Position.y / SpatialChunkSize)
                 );
 
-                if (!_spatialGrid.TryGetValue(chunkID, out var list))
+                if (!_spatialGrid.TryGetValue(chunkID, out var list))//如果这个区块还没有生物列表，创建一个新的列表并加入字典
                 {
                     list = new List<CreatureData>();
                     _spatialGrid[chunkID] = list;
@@ -177,6 +177,7 @@ namespace EvolutionLaws.Core
         // ==========================================
         private void PerceiveFoodResources(CreatureData creature, EnvironmentData environment)
         {
+            // 计算扫描范围 (基于视觉范围和嗅觉敏感度)
             int scanRadius = Mathf.CeilToInt(creature.Vision_Range * creature.Scent_Sensitivity);
             int centerX = Mathf.FloorToInt(creature.Position.x);
             int centerY = Mathf.FloorToInt(creature.Position.y);

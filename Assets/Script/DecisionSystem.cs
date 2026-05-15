@@ -121,7 +121,7 @@ namespace EvolutionLaws.Core
         {
             if (!_lastDecisionTime.ContainsKey(creature.UID))
                 return true;
-
+            // 如果距离上次决策时间超过冷却时间,则允许重新决策
             float timeSinceLastDecision = _simulationTime - _lastDecisionTime[creature.UID];
             return timeSinceLastDecision >= creature.TargetSwitchCooldown;
         }

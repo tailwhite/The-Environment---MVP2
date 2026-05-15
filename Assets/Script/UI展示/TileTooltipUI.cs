@@ -3,6 +3,7 @@ using TMPro;
 using EvolutionLaws.Core;
 using EvolutionLaws.Data;
 using TileData = EvolutionLaws.Data.TileData;
+using UnityEngine.UI;
 
 namespace EvolutionLaws.UI
 {
@@ -93,6 +94,9 @@ namespace EvolutionLaws.UI
         private int _lastTileX = -1;
         private int _lastTileY = -1;
 
+        // 【新增安全锁】跨场景加载时的安全保护期
+        private float _safeStartTimer = 0.5f;
+
         // ==========================================
         // 初始化
         // ==========================================
@@ -145,6 +149,12 @@ namespace EvolutionLaws.UI
         // ==========================================
         private void Update()
         {
+            // 【核心修复】：场景刚加载的 0.2 秒内不执行任何 UI 激活和射线检测，避开 Unity 底层初始化漏洞
+            if (_safeStartTimer > 0f)
+            {
+                _safeStartTimer -= Time.unscaledDeltaTime; // 使用不受暂停影响的时间
+                return;
+            }
             // ──────────────────────────────────
             // 开关切换
             // ──────────────────────────────────
@@ -217,7 +227,7 @@ namespace EvolutionLaws.UI
 
                 // 【关键修复】：在显示UI并修改文本后，强制通知 Unity 重构排版！
                 // 防止稍后的 UpdatePosition() 获取 RectTransform 宽/高时触发底层报错。
-                Canvas.ForceUpdateCanvases();
+                //Canvas.ForceUpdateCanvases();
 
                 // 此时画布长宽已确认，可以安全地进行跟随和屏幕边缘约束运算
                 UpdatePosition();
@@ -228,6 +238,18 @@ namespace EvolutionLaws.UI
                 HidePanel();
                 _lastTileX = -1;
                 _lastTileY = -1;
+            }
+        }
+
+        // ==========================================
+        // UI 的物理位移需要在引擎其他系统处理完毕后进行
+        // ==========================================
+        private void LateUpdate()
+        {
+            // 只有当功能开启并且面板真正处于显示状态时，才跟随鼠标移动
+            if (_isFeatureEnabled && PanelRoot != null && PanelRoot.activeInHierarchy)
+            {
+                UpdatePosition();
             }
         }
 
