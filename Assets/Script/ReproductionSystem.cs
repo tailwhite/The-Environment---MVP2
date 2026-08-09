@@ -179,6 +179,9 @@ namespace EvolutionLaws.Core
 
             foreach (var other in allCreatures)
             {
+                // 对方必须未怀孕且未死亡未失去意识
+                if (other.IsPregnant || other.IsDead || other.IsUnconscious) continue;
+
                 // 跳过自己
                 if (other.UID == self.UID) continue;
 

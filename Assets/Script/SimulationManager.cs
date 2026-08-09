@@ -162,6 +162,18 @@ namespace EvolutionLaws.Core
             // 步骤 2: 手动初始化环境 (地图生成)
             // ──────────────────────────────────
             Debug.Log("[SimulationManager] 第 1 步: 初始化环境管理器...");
+            // 在生成地图前，注入大厅配置的随机种子
+            if (MetaDataManager.Current != null)
+            {
+                if (MetaDataManager.Current.MapSeed == 0)
+                {
+                    // 如果玩家没输入，就随机给一个，并存入存档以便这把如果好玩，玩家能查看到种子
+                    MetaDataManager.Current.MapSeed = Random.Range(10000, 99999);
+                    MetaDataManager.Save();
+                }
+                EnvironmentManager.Seed = MetaDataManager.Current.MapSeed;
+                Debug.Log($"[SimulationManager] 应用生态纪元种子: {EnvironmentManager.Seed}");
+            }
             EnvironmentManager.InitializeMapManual();
 
             // ──────────────────────────────────
@@ -346,10 +358,10 @@ namespace EvolutionLaws.Core
             {
                 _accumulator += Time.deltaTime * TimeScale;
 
-                int maxTicksPerFrame = 3;
-                float currentStep = FixedDeltaTime;
+                int maxTicksPerFrame = 3;//限制每帧最多执行的Tick次数，防止极端情况下的死循环
+                float currentStep = FixedDeltaTime;//默认每次Tick的步长，如果积累过多，可以增加每次Tick的步长来赶上进度，避免过度积累导致的卡顿，但同时限制每帧最多执行的Tick次数，防止极端情况下的死循环
 
-                if (_accumulator > currentStep * maxTicksPerFrame)
+                if (_accumulator > currentStep * maxTicksPerFrame)//如果积累的时间超过了当前步长乘以最大Tick次数，说明已经落后太多了，这时可以增加每次Tick的步长来赶上进度，但同时限制每帧最多执行的Tick次数，防止极端情况下的死循环
                 {
                     currentStep = _accumulator / maxTicksPerFrame;
                 }
@@ -425,6 +437,33 @@ namespace EvolutionLaws.Core
         {
             TimeScale = scale;
             Debug.Log($"[SimulationManager] 时间缩放设置为: {TimeScale}x");
+        }
+
+        // ==========================================
+        // 演示功能 (Demo Utility): 重开与退出
+        // ==========================================
+        /// <summary>
+        /// 提供给 UI 的“返回大厅”按钮使用
+        /// </summary>
+        public void ReturnToLobby()
+        {
+            ExportAnalyticsData(); // 安全导出分析表
+            Time.timeScale = 1f;   // 务必解锁时间，以免影响大厅系统
+            UnityEngine.SceneManagement.SceneManager.LoadScene("MetaScene"); // 填写局外场景名称
+        }
+
+        /// <summary>
+        /// 提供给 UI 的“退出游戏”按钮使用
+        /// </summary>
+        public void QuitDemo()
+        {
+            ExportAnalyticsData();
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+
+            Application.Quit();
+#endif
         }
 
         // ==========================================

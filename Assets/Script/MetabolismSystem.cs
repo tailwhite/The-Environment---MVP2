@@ -61,8 +61,8 @@ namespace EvolutionLaws.Core
                     if (creature.Energy < creature.Energy_Max)
                     {
                         // 昏迷时转换效率降低（模拟昏迷状态下代谢缓慢）
-                        float efficiencyMultiplier = creature.IsUnconscious ? 0.5f : 1.0f;
-                        float regenAmount = Energy_Regen_Rate * deltaTime * efficiencyMultiplier;
+                        float efficiencyMultiplier = creature.IsUnconscious ? 0.5f : 1.0f;//如果昏迷，效率减半
+                        float regenAmount = Energy_Regen_Rate * deltaTime * efficiencyMultiplier;// 本帧计划恢复的能量值
                         float nutrientCost = regenAmount / Nutrient_To_Energy_Rate;
 
                         // 检查是否有足够营养

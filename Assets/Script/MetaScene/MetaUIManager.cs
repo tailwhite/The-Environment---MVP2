@@ -50,12 +50,20 @@ namespace EvolutionLaws.UI
         [Header("出战物种分配")]
         public List<SpeciesDeploySlot> DeploySlots = new List<SpeciesDeploySlot>();
 
+        [Tooltip("退出游戏")]
+        public Button QuitButton; // 你可以在 Inspector 拖入退出按钮
+
+        // 【新增】地图种子功能
+        [Header("Demo 体验演示扩展")]
+        [Tooltip("输入自定义种子的输入框 (不用可留空)")]
+        public TMP_InputField MapSeedInput;
+
         private void Start()
         {
             // 0. 重构：直接调用初始化即可，它会自动去加载 MainMetaDatabase SO
             MetaConfigManager.Initialize();
 
-            // 1. 进入大厅第一件事：读取最新存档（比如刚死出来，需要刷新点数）
+            // 1. 进入大厅第一件事：读取最新存档
             MetaDataManager.Load();
 
             if (PotentialsDropdown != null)
@@ -64,10 +72,49 @@ namespace EvolutionLaws.UI
             if (MarksDropdown != null)
                 MarksDropdown.onValueChanged.AddListener(OnMarkSelectionChanged);
 
-            // 初始化分配槽位的显示
+            // 绑定种子输入框和退出事件
+            if (MapSeedInput != null)
+            {
+                // 如果存档里有旧种子，显示它
+                MapSeedInput.text = MetaDataManager.Current.MapSeed == 0 ? "" : MetaDataManager.Current.MapSeed.ToString();
+                MapSeedInput.onEndEdit.AddListener(OnSeedInputChanged);
+            }
+
+            if (QuitButton != null) QuitButton.onClick.AddListener(OnQuitGameClicked);
+            // 必须在读取存档后，立刻用数据生成UI界面和下拉菜单选项！
             InitDeploySlots();
-            // 2. 刷新界面显示
             RefreshUI();
+        }
+
+        // ==========================================
+        // 【新增】处理输入框变动事件
+        // ==========================================
+        private void OnSeedInputChanged(string input)
+        {
+            if (string.IsNullOrEmpty(input))
+            {
+                MetaDataManager.Current.MapSeed = 0; // 清空代表随机
+            }
+            else if (int.TryParse(input, out int seedParsed))
+            {
+                MetaDataManager.Current.MapSeed = seedParsed;
+            }
+            MetaDataManager.Save();
+        }
+
+        // ==========================================
+        // 【新增】退出游戏操作
+        // ==========================================
+        public void OnQuitGameClicked()
+        {
+            Debug.Log("[MetaUI] 准备退出游戏...");
+            MetaDataManager.Save();
+
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false; // 在编辑器中停止运行
+#else
+            Application.Quit(); // 打包出的真实游戏退出
+#endif
         }
 
         // ==========================================

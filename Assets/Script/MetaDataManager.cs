@@ -14,6 +14,9 @@ namespace EvolutionLaws.Meta
         public List<string> UnlockedMarks = new List<string>();//解锁的先祖印记列表，玩家每次灭绝后可能会解锁新的印记，保存在这里
         public List<string> UnlockedPotentials = new List<string>();// 你可以在这里预设一些默认解锁的潜能，比如“生存适应”潜能，保证玩家一开始就有一些选择
 
+        // 【新增】地图种子。0 代表随机生成
+        public int MapSeed = 0;
+
         // 2. 本局出战配置（Loadout，带进下一局）
         public List<string> EquippedMarks = new List<string>();
 
